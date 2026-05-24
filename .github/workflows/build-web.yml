@@ -20,8 +20,8 @@ env:
   GODOT_REPOSITORY: nikitalita/godot
   GODOT_REF: gdre-wb-babc272d44e
   EMSCRIPTEN_VERSION: "4.0.10"
-  # SCons flags matching the upstream CI
-  SCONSFLAGS: >-
+  # SCons flags for the WEB template build
+  SCONSFLAGS_WEB: >-
     warnings=no
     werror=no
     module_text_server_fb_enabled=yes
@@ -44,6 +44,30 @@ env:
     disable_godot_mono_decomp=yes
     threads=no
     production=yes
+  # SCons flags for the LINUX EDITOR build (no threads=no, no web-only flags)
+  SCONSFLAGS_EDITOR: >-
+    warnings=no
+    werror=no
+    module_text_server_fb_enabled=yes
+    minizip=yes
+    deprecated=yes
+    module_camera_enabled=no
+    module_mobile_vr_enabled=no
+    module_upnp_enabled=no
+    module_websocket_enabled=no
+    module_csg_enabled=yes
+    module_gridmap_enabled=yes
+    use_static_cpp=yes
+    builtin_freetype=yes
+    builtin_libpng=yes
+    builtin_zlib=yes
+    builtin_libwebp=yes
+    builtin_libvorbis=yes
+    builtin_libogg=yes
+    disable_3d=no
+    disable_godot_mono_decomp=yes
+    debug_symbols=no
+    accesskit=no
 
 jobs:
   # ---------------------------------------------------------------
@@ -138,7 +162,7 @@ jobs:
           SCONS_CACHE: /home/runner/.scons_cache
           SCONS_CACHE_LIMIT: 7168
         run: |
-          scons platform=web target=template_release ${{ env.SCONSFLAGS }} -j$(nproc)
+          scons platform=web target=template_release ${{ env.SCONSFLAGS_WEB }} -j$(nproc)
 
       - name: Package web template
         if: steps.cache-template.outputs.cache-hit != 'true'
@@ -164,11 +188,99 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------
-  # JOB 2: Export the Godot project using the template → HTML
+  # JOB 2: Build the Linux headless editor (parallel with Job 1)
+  # ---------------------------------------------------------------
+  build-editor:
+    name: "Build Linux Editor"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout gdsdecomp (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: gdsdecomp
+          fetch-depth: 0
+
+      - name: Restore cached Linux editor
+        id: cache-editor
+        uses: actions/cache@v4
+        with:
+          path: godot/bin/godot.linuxbsd.editor.x86_64
+          key: linux-editor-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
+
+      - name: Checkout Godot fork
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GODOT_REPOSITORY }}
+          ref: ${{ env.GODOT_REF }}
+          path: godot
+
+      - name: Symlink gdsdecomp into Godot modules
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        run: ln -s $GITHUB_WORKSPACE/gdsdecomp $GITHUB_WORKSPACE/godot/modules/gdsdecomp
+
+      - name: Install Linux build dependencies
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev \
+            libpulse-dev libudev-dev libxi-dev libxrandr-dev \
+            libwayland-dev yasm
+
+      - name: Set up Python 3.10
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install SCons
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        run: pip install scons==4.10.1
+
+      - name: Set up Rust (stable)
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cbindgen
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        run: cargo install cbindgen --quiet
+
+      - name: Restore SCons build cache (editor)
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.scons_cache_editor
+          key: scons-editor-${{ env.GODOT_REF }}-${{ github.run_id }}
+          restore-keys: |
+            scons-editor-${{ env.GODOT_REF }}-
+
+      - name: Build Linux headless editor
+        if: steps.cache-editor.outputs.cache-hit != 'true'
+        working-directory: godot
+        env:
+          SCONS_CACHE: /home/runner/.scons_cache_editor
+          SCONS_CACHE_LIMIT: 7168
+        run: |
+          scons platform=linuxbsd target=editor arch=x86_64 \
+            ${{ env.SCONSFLAGS_EDITOR }} \
+            -j$(nproc)
+
+      - name: Upload editor artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-editor
+          path: godot/bin/godot.linuxbsd.editor.x86_64
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # JOB 3: Export the Godot project using the template → HTML
   # ---------------------------------------------------------------
   export-project:
     name: "Export & Deploy to GitHub Pages"
-    needs: build-template
+    needs: [build-template, build-editor]
     runs-on: ubuntu-22.04
     environment:
       name: github-pages
@@ -184,27 +296,17 @@ jobs:
           name: web-template
           path: web-template
 
-      - name: Install Godot editor (headless)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download Linux editor
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-editor
+          path: godot-editor-bin
+
+      - name: Set up Godot editor binary
         run: |
-          # Download the latest pre-built GDRETools Linux editor binary
-          mkdir -p gdre_bin
-          gh release download \
-            --repo GDRETools/gdsdecomp \
-            --pattern "*linux*" \
-            --dir /tmp/gdre_dl \
-            --clobber
-          ZIPFILE=$(ls /tmp/gdre_dl/*.zip | head -1)
-          echo "Downloaded: $ZIPFILE"
-          unzip "$ZIPFILE" -d gdre_bin
-          chmod +x gdre_bin/gdre_tools.x86_64
-          GDRE_DIR="$(pwd)/gdre_bin"
-          echo "GODOT_BIN=${GDRE_DIR}/gdre_tools.x86_64" >> $GITHUB_ENV
-          # Ensure the shared library next to the binary is found at runtime
-          echo "LD_LIBRARY_PATH=${GDRE_DIR}:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-          echo "Editor installed: ${GDRE_DIR}/gdre_tools.x86_64"
-          ls -lh gdre_bin/
+          chmod +x godot-editor-bin/godot.linuxbsd.editor.x86_64
+          echo "GODOT_BIN=$(pwd)/godot-editor-bin/godot.linuxbsd.editor.x86_64" >> $GITHUB_ENV
+          echo "Editor ready: $(pwd)/godot-editor-bin/godot.linuxbsd.editor.x86_64"
 
       - name: Prepare export directory
         run: mkdir -p exported_web
