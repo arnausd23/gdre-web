@@ -482,6 +482,10 @@ func is_dev_version()-> bool:
 	return false
 
 func check_version() -> bool:
+	# On web, the page is always the latest deployed version — no update needed.
+	# Also, GitHub API requests from web context would fail due to CORS.
+	if OS.get_name() == "Web":
+		return false
 	# check the version
 	var http = HTTPRequest.new()
 	# add it to the tree so it doesn't get deleted
@@ -493,6 +497,11 @@ func check_version() -> bool:
 func is_new_version(new_version: String):
 	var curr_version = GDRESettings.get_gdre_version()
 	if curr_version == new_version:
+		return false
+	# Guard against non-semver strings (e.g. "unknown" in web/dev builds)
+	# before calling into C++ parse_semver which throws a hard ERROR.
+	if curr_version.is_empty() or curr_version == "unknown":
+		print("Warning: current version is unknown, skipping version comparison")
 		return false
 	var curr_semver = SemVer.parse_semver(curr_version)
 	var new_semver = SemVer.parse_semver(new_version)
