@@ -481,10 +481,24 @@ func is_dev_version()-> bool:
 		return true
 	return false
 
+## Returns true when running inside a browser (web export).
+## Uses ClassDB to detect JavaScriptBridge — more reliable than OS.get_name()
+## since the platform string can vary between custom Godot builds.
+static func _running_on_web() -> bool:
+	return ClassDB.class_exists("JavaScriptBridge") or OS.get_name() == "Web" or OS.has_feature("web")
+
+## Returns true if the string looks like a valid semver before calling into C++.
+## SemVer::parse() throws a hard ERROR on invalid input so we must guard here.
+static func _is_parseable_semver(ver: String) -> bool:
+	if ver.is_empty() or ver == "unknown":
+		return false
+	var s = ver.lstrip("v")
+	return s.length() > 0 and s[0] >= '0' and s[0] <= '9'
+
 func check_version() -> bool:
-	# On web, the page is always the latest deployed version — no update needed.
-	# Also, GitHub API requests from web context would fail due to CORS.
-	if OS.get_name() == "Web":
+	# On web the page is always the latest deployed build — just refresh to update.
+	# Also guards against CORS failures hitting api.github.com.
+	if _running_on_web():
 		return false
 	# check the version
 	var http = HTTPRequest.new()
@@ -498,10 +512,12 @@ func is_new_version(new_version: String):
 	var curr_version = GDRESettings.get_gdre_version()
 	if curr_version == new_version:
 		return false
-	# Guard against non-semver strings (e.g. "unknown" in web/dev builds)
-	# before calling into C++ parse_semver which throws a hard ERROR.
-	if curr_version.is_empty() or curr_version == "unknown":
-		print("Warning: current version is unknown, skipping version comparison")
+	# Guard before calling C++ SemVer::parse() which throws a hard ERROR on bad input.
+	if not _is_parseable_semver(curr_version):
+		print("Warning: current version '%s' is not parseable semver, skipping comparison" % curr_version)
+		return false
+	if not _is_parseable_semver(new_version):
+		print("Warning: new version '%s' is not parseable semver, skipping comparison" % new_version)
 		return false
 	var curr_semver = SemVer.parse_semver(curr_version)
 	var new_semver = SemVer.parse_semver(new_version)
@@ -541,6 +557,9 @@ func should_show_disclaimer():
 		return true
 	if last_showed == curr_version:
 		return false
+	# Guard before calling C++ SemVer::parse() — "unknown" and similar strings crash it.
+	if not _is_parseable_semver(curr_version) or not _is_parseable_semver(last_showed):
+		return true
 	var curr_semver = SemVer.parse_semver(curr_version)
 	var last_semver = SemVer.parse_semver(last_showed)
 	if curr_semver == null or last_semver == null:
