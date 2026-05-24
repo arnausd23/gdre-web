@@ -89,7 +89,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: godot/bin/web_template.zip
-          key: web-template-v2-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
+          key: web-template-v3-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
 
       - name: Checkout Godot fork
         if: steps.cache-template.outputs.cache-hit != 'true'
@@ -170,11 +170,31 @@ jobs:
         run: |
           mkdir -p bin
           cd bin
-          # Use wildcard to capture ALL web template files including the HTML shell
-          # (godot.web.template_release.wasm32.nothreads.html is required for index.html output)
-          echo "=== Web template files found ==="
-          ls godot.web.template_release.wasm32.* 2>/dev/null || echo "(none yet)"
-          zip web_template.zip godot.web.template_release.wasm32.*
+          PREFIX="godot.web.template_release.wasm32.nothreads"
+          echo "=== Files in bin/ with template prefix ==="
+          ls ${PREFIX}.* 2>/dev/null || echo "(none)"
+          echo "=== Files in bin/.web_zip/ ==="
+          ls .web_zip/ 2>/dev/null || echo "(no .web_zip dir)"
+
+          # The HTML shell and audio worklets are in bin/.web_zip/ with short names.
+          # Copy them into bin/ with the proper template naming so the export plugin can find them.
+          if [ -d ".web_zip" ]; then
+            for src in .web_zip/godot.html \
+                       .web_zip/godot.audio.worklet.js \
+                       .web_zip/godot.audio.position.worklet.js; do
+              if [ -f "$src" ]; then
+                # e.g. godot.html → godot.web.template_release.wasm32.nothreads.html
+                ext="${src#.web_zip/godot}"   # → .html  or .audio.worklet.js etc.
+                dest="${PREFIX}${ext}"
+                cp "$src" "$dest"
+                echo "Copied $src → $dest"
+              fi
+            done
+          fi
+
+          echo "=== Final template files ==="
+          ls ${PREFIX}.*
+          zip web_template.zip ${PREFIX}.*
           echo "=== Contents of web_template.zip ==="
           unzip -l web_template.zip
           ls -lh web_template.zip
