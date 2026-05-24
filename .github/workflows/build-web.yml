@@ -89,7 +89,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: godot/bin/web_template.zip
-          key: web-template-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
+          key: web-template-v2-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
 
       - name: Checkout Godot fork
         if: steps.cache-template.outputs.cache-hit != 'true'
@@ -169,15 +169,14 @@ jobs:
         working-directory: godot
         run: |
           mkdir -p bin
-          # Godot web template is a zip of the wasm + js files
           cd bin
-          zip web_template.zip \
-            godot.web.template_release.wasm32.nothreads.js \
-            godot.web.template_release.wasm32.nothreads.wasm \
-            godot.web.template_release.wasm32.nothreads.audio.worklet.js \
-            godot.web.template_release.wasm32.nothreads.worker.js \
-            2>/dev/null || \
-          zip web_template.zip godot.web.template_release.wasm32.* 2>/dev/null
+          # Use wildcard to capture ALL web template files including the HTML shell
+          # (godot.web.template_release.wasm32.nothreads.html is required for index.html output)
+          echo "=== Web template files found ==="
+          ls godot.web.template_release.wasm32.* 2>/dev/null || echo "(none yet)"
+          zip web_template.zip godot.web.template_release.wasm32.*
+          echo "=== Contents of web_template.zip ==="
+          unzip -l web_template.zip
           ls -lh web_template.zip
 
       - name: Upload template artifact
