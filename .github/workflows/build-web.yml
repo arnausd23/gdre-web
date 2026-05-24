@@ -184,46 +184,23 @@ jobs:
           name: web-template
           path: web-template
 
-      - name: Install Godot 4.7 editor (headless)
+      - name: Install Godot editor (headless)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Download the matching Godot editor build from gdsdecomp releases
-          # Fall back to nightly build of the fork if not available
-          GODOT_VER="4.7-dev"
-          # Try to get a pre-built editor from the project's own releases
-          curl -L "https://github.com/GDRETools/gdsdecomp/releases/latest/download/GDRE_tools.x86_64.zip" \
-            -o gdre_editor.zip 2>/dev/null && \
-            unzip gdre_editor.zip -d gdre_bin && \
-            chmod +x gdre_bin/gdre_tools.x86_64 && \
-            echo "GODOT_BIN=./gdre_bin/gdre_tools.x86_64" >> $GITHUB_ENV || \
-          (
-            # Fallback: build Godot editor headless from source
-            echo "Falling back to building editor from source..."
-            echo "NEED_EDITOR_BUILD=true" >> $GITHUB_ENV
-          )
-
-      - name: Set up Python + SCons (for editor build fallback)
-        if: env.NEED_EDITOR_BUILD == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Build Godot headless editor (fallback)
-        if: env.NEED_EDITOR_BUILD == 'true'
-        run: |
-          pip install scons
-          sudo apt-get install -y build-essential pkg-config libx11-dev libxcursor-dev \
-            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev libpulse-dev \
-            libudev-dev libxi-dev libxrandr-dev libwayland-dev
-          git clone --depth=1 --branch ${{ env.GODOT_REF }} \
-            https://github.com/${{ env.GODOT_REPOSITORY }}.git godot-editor
-          ln -s $GITHUB_WORKSPACE/modules/gdsdecomp godot-editor/modules/gdsdecomp 2>/dev/null || true
-          cd godot-editor
-          scons platform=linuxbsd target=editor arch=x86_64 \
-            warnings=no werror=no \
-            module_text_server_fb_enabled=yes minizip=yes deprecated=yes \
-            disable_godot_mono_decomp=yes \
-            -j$(nproc)
-          echo "GODOT_BIN=$GITHUB_WORKSPACE/godot-editor/bin/godot.linuxbsd.editor.x86_64" >> $GITHUB_ENV
+          # Download the latest pre-built GDRETools Linux editor binary
+          mkdir -p gdre_bin
+          gh release download \
+            --repo GDRETools/gdsdecomp \
+            --pattern "*linux*" \
+            --dir /tmp/gdre_dl \
+            --clobber
+          ZIPFILE=$(ls /tmp/gdre_dl/*.zip | head -1)
+          echo "Downloaded: $ZIPFILE"
+          unzip "$ZIPFILE" gdre_tools.x86_64 -d gdre_bin
+          chmod +x gdre_bin/gdre_tools.x86_64
+          echo "GODOT_BIN=$(pwd)/gdre_bin/gdre_tools.x86_64" >> $GITHUB_ENV
+          echo "Editor installed: $(pwd)/gdre_bin/gdre_tools.x86_64"
 
       - name: Prepare export directory
         run: mkdir -p exported_web
