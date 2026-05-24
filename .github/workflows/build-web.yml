@@ -311,39 +311,20 @@ jobs:
       - name: Prepare export directory
         run: mkdir -p exported_web
 
-      - name: Set up export_presets.cfg with correct template path
+      - name: Install web export templates to Godot standard location
         run: |
-          TEMPLATE_ZIP="$GITHUB_WORKSPACE/web-template/web_template.zip"
-          # Update the Web preset export_path and custom template
-          python3 - <<'PYEOF'
-          import re, os
-          cfg_path = "standalone/export_presets.cfg"
-          template_zip = os.environ.get("TEMPLATE_ZIP", "")
-          with open(cfg_path, "r") as f:
-              content = f.read()
-
-          # Find the Web preset block (preset.3) and update fields
-          # Set export_path
-          content = re.sub(
-              r'(name="Web".*?export_path=)"[^"]*"',
-              r'\1"../exported_web/index.html"',
-              content, flags=re.DOTALL
-          )
-          # Set custom template debug + release
-          content = re.sub(
-              r'(name="Web".*?custom_template/debug=)"[^"]*"',
-              rf'\1"{template_zip}"',
-              content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'(name="Web".*?custom_template/release=)"[^"]*"',
-              rf'\1"{template_zip}"',
-              content, flags=re.DOTALL
-          )
-          with open(cfg_path, "w") as f:
-              f.write(content)
-          print("Updated export_presets.cfg")
-          PYEOF
+          # Godot looks for templates in ~/.local/share/godot/export_templates/<version>/
+          # Get version string from the editor binary (e.g. "4.7.dev.custom_build.abc1234")
+          VERSION=$(${{ env.GODOT_BIN }} --version 2>&1 | head -1)
+          # Template dir uses major.minor.status without custom_build suffix (e.g. "4.7.dev")
+          TEMPLATE_VER=$(echo "$VERSION" | cut -d. -f1-3)
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$TEMPLATE_VER"
+          echo "Godot version: $VERSION → template dir: $TEMPLATE_VER"
+          mkdir -p "$TEMPLATE_DIR"
+          cp web-template/web_template.zip "$TEMPLATE_DIR/web_nothreads_release.zip"
+          cp web-template/web_template.zip "$TEMPLATE_DIR/web_nothreads_debug.zip"
+          echo "Installed templates:"
+          ls -lh "$TEMPLATE_DIR/"
 
       - name: Import project resources (first run)
         working-directory: standalone
