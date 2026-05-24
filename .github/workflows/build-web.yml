@@ -197,10 +197,14 @@ jobs:
             --clobber
           ZIPFILE=$(ls /tmp/gdre_dl/*.zip | head -1)
           echo "Downloaded: $ZIPFILE"
-          unzip "$ZIPFILE" gdre_tools.x86_64 -d gdre_bin
+          unzip "$ZIPFILE" -d gdre_bin
           chmod +x gdre_bin/gdre_tools.x86_64
-          echo "GODOT_BIN=$(pwd)/gdre_bin/gdre_tools.x86_64" >> $GITHUB_ENV
-          echo "Editor installed: $(pwd)/gdre_bin/gdre_tools.x86_64"
+          GDRE_DIR="$(pwd)/gdre_bin"
+          echo "GODOT_BIN=${GDRE_DIR}/gdre_tools.x86_64" >> $GITHUB_ENV
+          # Ensure the shared library next to the binary is found at runtime
+          echo "LD_LIBRARY_PATH=${GDRE_DIR}:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "Editor installed: ${GDRE_DIR}/gdre_tools.x86_64"
+          ls -lh gdre_bin/
 
       - name: Prepare export directory
         run: mkdir -p exported_web
