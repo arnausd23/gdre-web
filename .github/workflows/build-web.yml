@@ -126,7 +126,7 @@ jobs:
         if: steps.cache-template.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
-          path: ~/.scons_cache
+          path: /home/runner/.scons_cache
           key: scons-web-${{ env.GODOT_REF }}-${{ github.run_id }}
           restore-keys: |
             scons-web-${{ env.GODOT_REF }}-
@@ -135,10 +135,10 @@ jobs:
         if: steps.cache-template.outputs.cache-hit != 'true'
         working-directory: godot
         env:
-          SCONS_CACHE: ~/.scons_cache
+          SCONS_CACHE: /home/runner/.scons_cache
           SCONS_CACHE_LIMIT: 7168
         run: |
-          scons platform=web target=template_release ${{ env.SCONSFLAGS }}
+          scons platform=web target=template_release ${{ env.SCONSFLAGS }} -j$(nproc)
 
       - name: Package web template
         if: steps.cache-template.outputs.cache-hit != 'true'
