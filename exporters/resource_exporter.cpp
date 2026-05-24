@@ -1,0 +1,248 @@
+#include "resource_exporter.h"
+#include "compat/resource_loader_compat.h"
+#include "utility/common.h"
+#include "utility/gdre_settings.h"
+
+#include "core/error/error_list.h"
+#include "core/error/error_macros.h"
+#include "core/object/class_db.h"
+
+Ref<ResourceExporter> Exporter::exporters[MAX_EXPORTERS];
+int Exporter::exporter_count = 0;
+
+Error ResourceExporter::write_to_file(const String &path, const Vector<uint8_t> &data) {
+	Error err = gdre::ensure_dir(path.get_base_dir());
+	ERR_FAIL_COND_V_MSG(err, err, "Failed to create directory for " + path);
+	Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(file.is_null(), !err ? ERR_FILE_CANT_WRITE : err, "Cannot open file '" + path + "' for writing.");
+	file->store_buffer(data.ptr(), data.size());
+	file->flush();
+	return OK;
+}
+
+int ResourceExporter::get_ver_major(const String &res_path) {
+	Error err;
+	auto info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
+	ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to get resource info for " + res_path);
+	return info->ver_major; // Placeholder return value
+}
+
+bool ResourceExporter::supports_multithread() const {
+	return true;
+}
+
+bool ResourceExporter::handles_import(const String &importer, const String &resource_type) const {
+	if (!importer.is_empty()) {
+		List<String> handled_importers;
+		get_handled_importers(&handled_importers);
+		if (!handled_importers.is_empty()) {
+			for (const String &h : handled_importers) {
+				if (h == importer) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+	if (!resource_type.is_empty()) {
+		List<String> handled_types;
+		get_handled_types(&handled_types);
+		for (const String &h : handled_types) {
+			if (h == resource_type) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void ResourceExporter::get_handled_importers(List<String> *out) const {
+}
+
+void ResourceExporter::get_handled_types(List<String> *out) const {
+}
+
+Error ResourceExporter::export_file(const String &out_path, const String &res_path) {
+	return ERR_UNAVAILABLE;
+}
+
+Ref<ExportReport> ResourceExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
+	auto thing = Ref<ExportReport>(memnew(ExportReport(import_infos)));
+	thing->set_error(ERR_UNAVAILABLE);
+	return thing;
+}
+
+String ResourceExporter::get_name() const {
+	return get_class().trim_suffix("Exporter");
+}
+
+bool ResourceExporter::supports_nonpack_export() const {
+	return true;
+}
+
+String ResourceExporter::get_default_export_extension(const String &res_path) const {
+	ERR_FAIL_V_MSG(String(), "Not implemented");
+}
+
+Vector<String> ResourceExporter::get_export_extensions(const String &res_path) const {
+	ERR_FAIL_V_MSG(Vector<String>(), "Not implemented");
+}
+
+Error ResourceExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	return ERR_UNAVAILABLE;
+}
+
+void ResourceExporter::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_name"), &ResourceExporter::get_name);
+	ClassDB::bind_method(D_METHOD("supports_nonpack_export"), &ResourceExporter::supports_nonpack_export);
+	ClassDB::bind_method(D_METHOD("export_file", "out_path", "src_path"), &ResourceExporter::export_file);
+	ClassDB::bind_method(D_METHOD("export_resource", "output_dir", "import_infos"), &ResourceExporter::export_resource);
+	ClassDB::bind_method(D_METHOD("handles_import", "importer", "resource_type"), &ResourceExporter::handles_import);
+	ClassDB::bind_method(D_METHOD("get_default_export_extension", "res_path"), &ResourceExporter::get_default_export_extension);
+	ClassDB::bind_method(D_METHOD("get_export_extensions", "res_path"), &ResourceExporter::get_export_extensions);
+}
+
+Ref<ExportReport> ResourceExporter::_check_for_existing_resources(const Ref<ImportInfo> &iinfo) {
+	bool has_file = false;
+	auto dest_files = iinfo->get_dest_files();
+	for (const String &dest : dest_files) {
+		if (GDRESettings::get_singleton()->is_pack_loaded()) {
+			if (GDRESettings::get_singleton()->has_path_loaded(dest)) {
+				has_file = true;
+				break;
+			}
+		} else if (FileAccess::exists(dest)) {
+			has_file = true;
+			break;
+		}
+	}
+	if (!has_file) {
+		Ref<ExportReport> report = memnew(ExportReport(iinfo));
+		report->set_error(ERR_FILE_NOT_FOUND);
+		report->set_message("No existing resources found for this import");
+		report->append_message_detail({ "Possibles:" });
+		report->append_message_detail(dest_files);
+		return report;
+	}
+	return Ref<ExportReport>();
+}
+
+void Exporter::add_exporter(Ref<ResourceExporter> exporter, bool at_front) {
+	if (exporter_count < MAX_EXPORTERS) {
+		if (at_front) {
+			for (int i = exporter_count; i > 0; --i) {
+				exporters[i] = exporters[i - 1];
+			}
+			exporters[0] = exporter;
+		} else {
+			exporters[exporter_count] = exporter;
+		}
+		exporter_count++;
+	}
+}
+
+void Exporter::remove_exporter(Ref<ResourceExporter> exporter) {
+	// Find exporter
+	int i = 0;
+	for (; i < exporter_count; ++i) {
+		if (exporters[i] == exporter) {
+			break;
+		}
+	}
+
+	ERR_FAIL_COND(i >= exporter_count); // Not found
+
+	// Shift next exporters up
+	for (; i < exporter_count - 1; ++i) {
+		exporters[i] = exporters[i + 1];
+	}
+	exporters[exporter_count - 1].unref();
+	--exporter_count;
+}
+
+Ref<ResourceExporter> Exporter::get_exporter(const String &importer, const String &type) {
+	for (int i = 0; i < exporter_count; ++i) {
+		if (exporters[i]->handles_import(importer, type)) {
+			return exporters[i];
+		}
+	}
+	return Ref<ResourceExporter>();
+}
+
+Ref<ExportReport> Exporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
+	String import_type = import_infos->get_type();
+	String importer = import_infos->get_importer();
+	auto exporter = get_exporter(importer, import_type);
+	if (exporter.is_null()) {
+		Ref<ExportReport> report{ memnew(ExportReport(import_infos)) };
+		report->set_message("No exporter found for importer " + importer + " and type: " + import_type);
+		report->set_error(ERR_UNAVAILABLE);
+		return report;
+	}
+	return exporter->export_resource(output_dir, import_infos);
+}
+
+Error Exporter::export_file(const String &out_path, const String &res_path) {
+	String importer = "";
+	Ref<ResourceInfo> info = ResourceCompatLoader::get_resource_info(res_path, importer);
+	String type = info.is_valid() ? info->type : "";
+	auto exporter = get_exporter(importer, type);
+	if (exporter.is_null()) {
+		return ERR_UNAVAILABLE;
+	}
+	return exporter->export_file(out_path, res_path);
+}
+
+Ref<ResourceExporter> Exporter::get_exporter_from_path(const String &res_path, bool p_nonpack_export) {
+	if (!ResourceCompatLoader::handles_resource(res_path, "")) {
+		return Ref<ResourceExporter>();
+	}
+
+	String importer = "";
+	Ref<ResourceInfo> info = ResourceCompatLoader::get_resource_info(res_path, importer);
+	String type = info.is_valid() ? info->type : "";
+	for (int i = 0; i < exporter_count; ++i) {
+		if (exporters[i]->handles_import(importer, type) && (!p_nonpack_export || exporters[i]->supports_nonpack_export())) {
+			return exporters[i];
+		}
+	}
+	return Ref<ResourceExporter>();
+}
+
+bool Exporter::is_exportable_resource(const String &res_path) {
+	return !get_exporter_from_path(res_path, false).is_null();
+}
+
+String Exporter::get_default_export_extension(const String &res_path) {
+	auto exporter = get_exporter_from_path(res_path, false);
+	return exporter.is_null() ? "" : exporter->get_default_export_extension(res_path);
+}
+
+Vector<String> Exporter::get_export_extensions(const String &res_path) {
+	auto exporter = get_exporter_from_path(res_path, false);
+	return exporter.is_null() ? Vector<String>() : exporter->get_export_extensions(res_path);
+}
+
+Error Exporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) {
+	ERR_FAIL_NULL_V(export_report, ERR_BUG);
+	ERR_FAIL_NULL_V(export_report->get_import_info(), ERR_BUG);
+	String exporter_name = export_report->get_exporter();
+	ERR_FAIL_COND_V_MSG(exporter_name.is_empty(), ERR_BUG, "Exporter name is empty");
+	for (int i = 0; i < exporter_count; ++i) {
+		if (exporters[i]->get_name() == exporter_name) {
+			return exporters[i]->test_export(export_report, original_project_dir);
+		}
+	}
+	ERR_FAIL_V_MSG(ERR_BUG, "Exporter not found: " + exporter_name);
+}
+
+void Exporter::_bind_methods() {
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("add_exporter", "exporter", "at_front"), &Exporter::add_exporter);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("remove_exporter", "exporter"), &Exporter::remove_exporter);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_resource", "output_dir", "import_infos"), &Exporter::export_resource);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file", "out_path", "res_path"), &Exporter::export_file);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_exporter_from_path", "res_path", "nonpack_export"), &Exporter::get_exporter_from_path, DEFVAL(true));
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_exportable_resource", "res_path"), &Exporter::is_exportable_resource);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_default_export_extension", "res_path"), &Exporter::get_default_export_extension);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_export_extensions", "res_path"), &Exporter::get_export_extensions);
+}

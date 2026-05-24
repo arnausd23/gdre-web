@@ -1,0 +1,5 @@
+# godot imports
+.godot
+.export
+.editorconfig
+.idea/

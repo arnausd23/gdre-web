@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Exporter" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_exporter" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="exporter" type="ResourceExporter" />
+			<param index="1" name="at_front" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="export_file" qualifiers="static">
+			<return type="int" enum="Error" />
+			<param index="0" name="out_path" type="String" />
+			<param index="1" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="export_resource" qualifiers="static">
+			<return type="ExportReport" />
+			<param index="0" name="output_dir" type="String" />
+			<param index="1" name="import_infos" type="ImportInfo" />
+			<description>
+			</description>
+		</method>
+		<method name="get_default_export_extension" qualifiers="static">
+			<return type="String" />
+			<param index="0" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_export_extensions" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_exporter_from_path" qualifiers="static">
+			<return type="ResourceExporter" />
+			<param index="0" name="res_path" type="String" />
+			<param index="1" name="nonpack_export" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="is_exportable_resource" qualifiers="static">
+			<return type="bool" />
+			<param index="0" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="remove_exporter" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="exporter" type="ResourceExporter" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

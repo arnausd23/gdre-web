@@ -1,0 +1,539 @@
+# TODO: we should break this up into multiple workflows, there are too many steps that only run on certain platforms
+name: Build Editor and Standalone
+on:
+  push:
+    paths:
+      - "**"
+      - "!**.md"
+      - "!LICENSE"
+      - "!.scripts/clang_format.sh"
+      - "!.github/**"
+      - "!.vscode/**"
+      - ".github/actions/**"
+      - ".github/workflows/all_builds.yml"
+  pull_request:
+    paths:
+      - "**"
+      - "!**.md"
+      - "!LICENSE"
+      - "!.scripts/clang_format.sh"
+      - "!.github/**"
+      - "!.vscode/**"
+      - ".github/actions/**"
+      - ".github/workflows/all_builds.yml"
+
+# Global Settings
+# SCONS_CACHE for windows must be set in the build environment
+env:
+  # TODO: change this back to godotengine/godot and target master when #109685 and #109475 are merged
+  GODOT_REPOSITORY: nikitalita/godot
+  # Change the README too
+  GODOT_MAIN_SYNC_REF: gdre-wb-babc272d44e
+  SCONSFLAGS: verbose=yes warnings=all werror=no module_text_server_fb_enabled=yes minizip=yes deprecated=yes
+  SCONSFLAGS_TEMPLATE: disable_path_overrides=no no_editor_splash=yes module_camera_enabled=no module_mobile_vr_enabled=no module_upnp_enabled=no module_websocket_enabled=no module_csg_enabled=yes module_gridmap_enabled=yes use_static_cpp=yes builtin_freetype=yes builtin_libpng=yes builtin_zlib=yes builtin_libwebp=yes builtin_libvorbis=yes builtin_libogg=yes disable_3d=no
+  SCONS_CACHE_MSVC_CONFIG: true
+
+concurrency:
+  group: ci-${{github.actor}}-${{github.head_ref || github.run_number}}-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Windows 10 with latest image
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Windows Editor"
+            os: "windows-latest"
+            id: windows-editor
+            platform: windows
+            target: editor
+            sconsflags: debug_symbols=no tests=yes
+            rust-arch: x86_64-pc-windows-msvc
+            alt-rust-arch: none
+            bin: ./bin/godot.windows.editor.x86_64.exe
+
+          - name: "Windows Template Release"
+            os: "windows-latest"
+            id: windows-template
+            platform: windows
+            target: template_release
+            sconsflags: debug_symbols=no production=yes
+            rust-arch: x86_64-pc-windows-msvc
+            alt-rust-arch: none
+            bin: ./bin/godot.windows.editor.x86_64.exe
+
+          - name: "🐧 Linux Editor"
+            os: "ubuntu-22.04"
+            id: linux-editor
+            platform: linux
+            target: editor
+            sconsflags: debug_symbols=no tests=yes
+            rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
+            bin: ./bin/godot.linuxbsd.editor.x86_64
+
+          # TODO: move into its own workflow
+          # - name: "🐧 Linux Editor with sanitizers"
+          #   os: "ubuntu-24.04"
+          #   id: linux-sanitizers
+          #   platform: linux
+          #   target: editor
+          #   sconsflags: dev_build=yes debug_symbols=no tests=yes use_asan=yes use_ubsan=yes linker=gold
+          #   bin: ./bin/godot.linuxbsd.editor.x86_64.san
+
+          # For testing the template builds
+          - name: "🐧 Linux Template Debug"
+            os: "ubuntu-22.04"
+            id: linux-template-debug
+            platform: linux
+            target: template_debug
+            sconsflags: debug_symbols=no tests=yes production=yes
+            rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
+            bin: ./bin/godot.linuxbsd.template_debug.x86_64
+
+          - name: "🐧 Linux Template Release"
+            os: "ubuntu-22.04"
+            id: linux-template
+            platform: linux
+            target: template_release
+            rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
+            sconsflags: production=yes debug_symbols=no optimize=size use_lto=yes
+            bin: ./bin/godot.linuxbsd.editor.x86_64
+
+          - name: "🤖 Android Template Release"
+            os: "ubuntu-22.04"
+            id: android-template
+            platform: android
+            target: template_release
+            rust-arch: x86_64-linux-android
+            alt-rust-arch: aarch64-linux-android
+            sconsflags: production=yes debug_symbols=no optimize=size use_lto=yes generate_android_binaries=yes
+            bin: ./bin/godot.linuxbsd.editor.x86_64
+
+          - name: "🍎 macOS Editor"
+            os: "macos-latest"
+            id: macos-editor
+            platform: macos
+            target: editor
+            rust-arch: x86_64-apple-darwin
+            alt-rust-arch: none
+            sconsflags: debug_symbols=no tests=yes use_volk=no vulkan=yes
+            bin: ./bin/godot.macos.editor.arm64
+
+          - name: "🍎 macOS Template Release"
+            os: "macos-latest"
+            id: macos-template
+            platform: macos
+            target: template_release
+            rust-arch: x86_64-apple-darwin
+            alt-rust-arch: aarch64-apple-darwin
+            sconsflags: production=yes debug_symbols=no optimize=size use_lto=yes use_volk=no vulkan=yes
+            bin: ./bin/godot.macos.editor.arm64
+
+    steps:
+      - name: checkout-godot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{env.GODOT_REPOSITORY}}
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
+
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v4
+        with:
+          path: modules/gdsdecomp
+          fetch-depth: 0
+
+      - name: copy actions
+        shell: bash
+        run: |
+          cp -R modules/gdsdecomp/.github/actions/* .github/actions/
+
+      - name: Select Xcode 16
+        if: matrix.platform == 'macos'
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Restore Godot build cache
+        uses: ./.github/actions/godot-cache-restore
+        id: restore-cache
+        with:
+          cache-name: ${{ matrix.id }}-${{ matrix.target }}
+        continue-on-error: true
+
+      - name: Install Linux deps
+        if: matrix.platform == 'linux' || matrix.platform == 'android'
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev libpulse-dev \
+            libudev-dev libxi-dev libxrandr-dev yasm clang-format libwayland-bin \
+            patchelf
+          sudo apt-get install libwayland-bin
+
+      - name: Set up JDK 17
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        if: matrix.platform == 'android'
+        uses: android-actions/setup-android@v3
+
+      - name: Setup python and scons
+        uses: ./.github/actions/godot-deps
+
+      - name: Setup Vulkan SDK
+        if: matrix.platform == 'macos'
+        run: |
+          sh misc/scripts/install_vulkan_sdk_macos.sh
+      - name: Download Direct3D 12 SDK components
+        if: matrix.platform == 'windows'
+        shell: sh
+        id: d3d12-sdk
+        run: |
+          if python ./misc/scripts/install_d3d12_sdk_windows.py; then
+            echo "D3D12_ENABLED=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Windows: Direct3D 12 SDK installation failed, building without Direct3D 12 support."
+            echo "D3D12_ENABLED=no" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+      - name: Show targets
+        shell: sh
+        run: |
+          rustc --print=target-list
+
+      - name: Rust Add target
+        shell: sh
+        run: |
+          rustup target add ${{ matrix.rust-arch }}
+
+      - name: Rust Add alt target
+        if: matrix.alt-rust-arch != 'none'
+        shell: sh
+        run: |
+          rustup target add ${{ matrix.alt-rust-arch }}
+
+      - name: setup-dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download pre-built Android Swappy Frame Pacing Library
+        if: matrix.platform == 'android'
+        uses: dsaltares/fetch-gh-release-asset@1.1.2
+        with:
+          repo: godotengine/godot-swappy
+          version: tags/from-source-2025-01-31
+          file: godot-swappy.7z
+          target: swappy/godot-swappy.7z
+
+      - name: Extract pre-built Android Swappy Frame Pacing Library
+        if: matrix.platform == 'android'
+        run: 7za x -y swappy/godot-swappy.7z -o${{github.workspace}}/thirdparty/swappy-frame-pacing
+
+      - name: Compile Editor
+        if: matrix.target == 'editor'
+        id: compile-editor
+        uses: ./.github/actions/godot-build
+        with:
+          scons-flags: ${{ env.SCONSFLAGS }} ${{ matrix.sconsflags }}
+          platform: ${{ matrix.platform }}
+          target: editor
+
+      - name: Compile godot export template (x86_64)
+        if: matrix.target == 'template_release' || matrix.target == 'template_debug'
+        id: compile-template
+        uses: ./.github/actions/godot-build
+        with:
+          scons-flags: arch=x86_64 ${{ env.SCONSFLAGS }} ${{ env.SCONSFLAGS_TEMPLATE }} ${{ matrix.sconsflags }}
+          platform: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+
+      - name: Compile godot export template for arm64
+        uses: ./.github/actions/godot-build
+        if: (matrix.platform == 'macos' || matrix.platform == 'android') && (matrix.target == 'template_release' || matrix.target == 'template_debug')
+        with:
+          scons-flags: arch=arm64 ${{ env.SCONSFLAGS }} ${{ env.SCONSFLAGS_TEMPLATE }} ${{ matrix.sconsflags }} generate_bundle=yes
+          platform: ${{ matrix.platform }}
+          target: ${{ matrix.target }}
+
+      - name: Save Godot build cache
+        # if: success() || (steps.restore-cache.outputs.cache-hit == 'false' && (steps.compile-editor.outcome != 'skipped' || steps.compile-template.outcome != 'skipped'))
+        uses: ./.github/actions/godot-cache-save
+        with:
+          cache-name: ${{ matrix.id }}-${{ matrix.target }}
+        continue-on-error: true
+
+      - name: Prepare template artifact
+        if: matrix.platform != 'android'
+        uses: ./.github/actions/godot-prepare-artifact
+
+      - name: Make macOS template
+        if: matrix.platform == 'macos' && matrix.target == 'template_release'
+        # generate_bundle lipos the template binaries and generates the bundle, so we don't have to do anything here
+        run: |
+          cd bin/
+          mv godot_macos.zip macos.zip
+          rm -f libGodotMonoDecompNativeAOT.dylib
+          rm -f godot.macos.template_release.*
+          cd ..
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.id != 'linux-sanitizers'
+        with:
+          name: GDRE_tools-${{ matrix.target }}-${{ matrix.platform }}
+          path: ${{github.workspace}}/bin/*
+          retention-days: 90
+
+      - name: run tests
+        continue-on-error: true
+        if: matrix.target == 'editor' && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          ${{matrix.bin}} --headless --test --force-colors "--test-case=[GDSDecomp]*"
+
+
+  test:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }} test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Windows"
+            os: "windows-latest"
+            target: editor
+            platform: windows
+            bin: ./bin/godot.windows.editor.x86_64.exe
+
+          - name: "🐧 Linux Editor"
+            os: "ubuntu-24.04"
+            target: editor
+            platform: linux
+            bin: ./bin/godot.linuxbsd.editor.x86_64
+
+          - name: "🐧 Linux Template Debug"
+            os: "ubuntu-24.04"
+            target: template_debug
+            platform: linux
+            bin: ./bin/godot.linuxbsd.template_debug.x86_64
+
+          - name: "🍎 macOS"
+            os: "macos-latest"
+            target: editor
+            platform: macos
+            bin: ./bin/godot.macos.editor.arm64
+
+    steps:
+      - name: checkout-godot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{env.GODOT_REPOSITORY}}
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
+
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v4
+        with:
+          path: modules/gdsdecomp
+          fetch-depth: 0
+
+      - name: copy actions
+        shell: bash
+        run: |
+          cp -R modules/gdsdecomp/.github/actions/* .github/actions/
+
+      - name: Download GDRE_tools artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-${{ matrix.target }}-${{ matrix.platform }}
+          path: bin
+
+      - name: set permissions
+        shell: bash
+        run: |
+          chmod a+x bin/godot*
+          mkdir -p ~/.cache/godot
+
+      - name: run tests
+        shell: bash
+        run: |
+          ${{matrix.bin}} --headless --test --force-colors "--test-case=[GDSDecomp]*"
+  export:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }} export
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Windows"
+            os: "windows-latest"
+            editor: windows
+            platform: windows
+            command-export: ${env:GITHUB_WORKSPACE}\bin\godot.windows.editor.x86_64.exe
+            export-preset: "Windows Desktop"
+            export-name: .export\gdre_tools.exe
+            debug: false
+
+          - name: "🐧 Linux"
+            os: "ubuntu-24.04"
+            editor: linux
+            platform: linux
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
+            export-preset: "Linux/X11"
+            export-name: .export/gdre_tools.x86_64
+            debug: false
+
+          - name: "🤖 Android"
+            os: "ubuntu-24.04"
+            editor: linux
+            platform: android
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
+            export-preset: "Android"
+            export-name: .export/gdre_tools.apk
+            debug: false
+
+          - name: "🍎 macOS"
+            os: "macos-latest"
+            editor: macos
+            platform: macos
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.editor.arm64
+            export-preset: "macOS"
+            export-name: .export/gdre_tools.universal.zip
+            debug: false
+    steps:
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v4
+        with:
+          path: modules/gdsdecomp
+          fetch-depth: 0
+
+      - name: copy actions
+        shell: bash
+        run: |
+          mkdir -p bin/
+          mkdir -p .github/actions/
+          cp -R modules/gdsdecomp/.github/actions/* .github/actions/
+
+
+      - name: Download GDRE_tools artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-editor-${{ matrix.editor }}
+          path: bin
+
+      - name: Download GDRE_tools template artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-template_release-${{ matrix.platform }}
+          path: bin
+
+      - name: set permissions
+        shell: bash
+        run: |
+          chmod a+x bin/godot*
+
+      - name: Download rcedit.exe
+        uses: robinraju/release-downloader@v1.5
+        if: matrix.platform == 'windows'
+        with:
+          repository: electron/rcedit
+          latest: true
+          fileName: rcedit-x64.exe
+          out-file-path: ${{ runner.tool_cache }}/rcedit
+
+      - name: Setup rcedit
+        if: matrix.platform == 'windows'
+        run: |
+          Rename-Item ${{ runner.tool_cache }}\rcedit\rcedit-x64.exe ${{ runner.tool_cache }}\rcedit\rcedit.exe
+          echo "${{ runner.tool_cache }}\rcedit" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Decode Android keystore
+        shell: bash
+        if: matrix.platform == 'android' && github.event_name != 'pull_request'
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" ]; then
+            echo "ANDROID_RELEASE_KEYSTORE is not set"
+            exit 1
+          fi
+          echo "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" > release.keystore.b64
+          openssl base64 -d -out ~/release.keystore -in release.keystore.b64
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+
+      - name: Export standalone GDRE Tools
+        shell: pwsh
+        run: |
+          $debug_flag = "--no-debug"
+          if (${{ matrix.debug }}) {
+            $debug_flag = "--debug"
+          }
+          cd ${{github.workspace}}/modules/gdsdecomp/standalone
+          pwsh -File ${{github.workspace}}/modules/gdsdecomp/.scripts/export.ps1 "${{ matrix.export-preset }}" -path "${{ matrix.export-name }}" $debug_flag
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GDRE_tools-standalone-${{ matrix.platform }}
+          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: "ubuntu-22.04"
+    permissions:
+      contents: write
+    needs: [build, export]
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-standalone-linux
+          path: artifacts/linux
+      - name: Download MacOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-standalone-macos
+          path: artifacts/macos
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-standalone-windows
+          path: artifacts/windows
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-standalone-android
+          path: artifacts/android
+      - name: Zip artifacts
+        run: |
+          ls -la artifacts/*
+          cd artifacts/windows
+          zip -r9  "../GDRE_tools-${{ github.ref_name }}-windows.zip" *
+          cd ../..
+          mv "artifacts/macos/gdre_tools.universal.zip" "artifacts/GDRE_tools-${{ github.ref_name }}-macos.zip"
+          cd artifacts/linux
+          chmod a+x gdre_tools.x86_64
+          zip -r9  "../GDRE_tools-${{ github.ref_name }}-linux.zip" *
+          cd ../android
+          mv gdre_tools.apk "../GDRE_tools-${{ github.ref_name }}-android.apk"
+      - name: Release
+        uses: nikitalita/action-gh-release@v1.0
+        with:
+          files: |
+            artifacts/GDRE_tools-${{ github.ref_name }}-windows.zip
+            artifacts/GDRE_tools-${{ github.ref_name }}-macos.zip
+            artifacts/GDRE_tools-${{ github.ref_name }}-linux.zip
+            artifacts/GDRE_tools-${{ github.ref_name }}-android.apk

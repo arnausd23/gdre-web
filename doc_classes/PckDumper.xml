@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PckDumper" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="check_md5_all_files">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="pck_dump_to_dir">
+			<return type="int" enum="Error" />
+			<param index="0" name="dir" type="String" />
+			<param index="1" name="files_to_extract" type="PackedStringArray" default="PackedStringArray()" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

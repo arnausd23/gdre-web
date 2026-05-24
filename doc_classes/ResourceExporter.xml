@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ResourceExporter" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="export_file">
+			<return type="int" enum="Error" />
+			<param index="0" name="out_path" type="String" />
+			<param index="1" name="src_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="export_resource">
+			<return type="ExportReport" />
+			<param index="0" name="output_dir" type="String" />
+			<param index="1" name="import_infos" type="ImportInfo" />
+			<description>
+			</description>
+		</method>
+		<method name="get_default_export_extension" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_export_extensions" qualifiers="const">
+			<return type="PackedStringArray" />
+			<param index="0" name="res_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_name" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="handles_import" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="importer" type="String" />
+			<param index="1" name="resource_type" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="supports_nonpack_export" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

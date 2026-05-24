@@ -1,0 +1,635 @@
+#pragma once
+#include "core/error/error_macros.h"
+#include "core/object/worker_thread_pool.h"
+#include "core/os/os.h"
+
+#include "gui/gdre_progress.h"
+#include "utility/gd_parallel_hashmap.h"
+#include "utility/gd_parallel_queue.h"
+#include "utility/gdre_config.h"
+
+#include <memory>
+
+struct TaskRunnerStruct {
+	virtual bool pre_run() { return true; }
+	virtual int get_current_task_step_value() = 0;
+	virtual String get_current_task_step_description() = 0;
+	virtual void cancel() = 0;
+	virtual void run(void *p_userdata) = 0;
+	virtual bool auto_close_progress_bar() { return false; }
+};
+
+class TaskManager : public Object {
+	GDCLASS(TaskManager, Object);
+
+public:
+	typedef int64_t DownloadTaskID;
+	typedef int64_t TaskManagerID;
+
+	static int64_t maximum_memory_usage;
+
+	static inline bool is_memory_usage_too_high() {
+		return (int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage;
+	}
+
+	class BaseMainThreadDispatchData {
+		TaskManager::TaskManagerID calling_task_id;
+		Semaphore semaphore;
+		bool canceled = false;
+
+	protected:
+		virtual void callback_internal() = 0;
+
+	public:
+		BaseMainThreadDispatchData(TaskManager::TaskManagerID p_calling_task_id) :
+				calling_task_id(p_calling_task_id) {}
+		virtual ~BaseMainThreadDispatchData() = default;
+		void callback() {
+			callback_internal();
+			semaphore.post();
+		}
+		void wait_for_completion() {
+			semaphore.wait();
+		}
+		void cancel() {
+			canceled = true;
+			semaphore.post();
+		}
+		bool is_canceled() const {
+			return canceled;
+		}
+		TaskManager::TaskManagerID get_calling_task_id() const {
+			return calling_task_id;
+		}
+	};
+
+	// This is a helper class to dispatch a callback to the main thread.
+	template <typename C, typename M, typename U>
+	class TemplateMainThreadDispatchData : public BaseMainThreadDispatchData {
+		C *instance;
+		M method;
+		U userdata;
+
+	public:
+		TemplateMainThreadDispatchData(TaskManager::TaskManagerID p_calling_task_id, C *p_instance, M p_method, U p_userdata) :
+				BaseMainThreadDispatchData(p_calling_task_id),
+				instance(p_instance),
+				method(p_method),
+				userdata(p_userdata) {}
+		void callback_internal() override {
+			(instance->*method)(userdata);
+		}
+	};
+
+	// This is a helper class to dispatch a callback to the main thread.
+	template <typename U>
+	class FunctionMainThreadDispatchData : public BaseMainThreadDispatchData {
+		std::function<void(U)> function;
+		U userdata;
+
+	public:
+		FunctionMainThreadDispatchData(TaskManager::TaskManagerID p_calling_task_id, std::function<void(U)> p_function, U p_userdata) :
+				BaseMainThreadDispatchData(p_calling_task_id),
+				function(p_function),
+				userdata(p_userdata) {}
+		void callback_internal() override {
+			function(userdata);
+		}
+	};
+
+	class BaseTemplateTaskData {
+	protected:
+		bool not_in_main_queue = false;
+		bool canceled = false;
+		bool runs_current_thread = false;
+		bool started = false;
+		bool auto_start = true;
+		bool progress_enabled = true;
+		bool timed_out = false;
+		bool _aborted = false;
+		Ref<EditorProgressGDDC> progress;
+
+		virtual void wait_for_task_completion_internal() = 0;
+		virtual void start_internal() = 0;
+		virtual void cancel_internal() {}
+		bool _wait_after_cancel();
+		String _get_task_description();
+		bool wait_update_progress(bool p_force_refresh = false);
+
+	public:
+		std::atomic<bool> is_waiting = false;
+
+		virtual bool is_done() const = 0;
+		virtual int get_current_task_step_value() = 0;
+		virtual String get_current_task_step_description() = 0;
+		virtual void run_on_current_thread() = 0;
+		virtual bool auto_close_progress_bar() { return false; }
+
+		void start();
+		bool is_started() const;
+		bool is_canceled() const;
+		void cancel();
+		void finish_progress();
+		bool is_progress_enabled() const;
+		// returns true if the task was cancelled before completion
+		bool update_progress(bool p_force_refresh = false);
+		bool is_timed_out() const;
+		bool _is_aborted() const;
+
+		virtual bool wait_for_completion(uint64_t timeout_s_no_progress = 0);
+
+		virtual ~BaseTemplateTaskData();
+	};
+
+	template <typename C, typename M, typename U, typename R>
+	class GroupTaskData : public BaseTemplateTaskData {
+		TaskManagerID task_manager_id;
+		C *instance;
+		M method;
+		U userdata;
+		int elements = -1;
+		int tasks = -1;
+		R task_step_desc_callback;
+		String task;
+		String description;
+		bool can_cancel = false;
+		bool high_priority = false;
+		std::atomic<int64_t> last_completed = 0;
+		std::atomic<int64_t> current_work_index = 0;
+		std::atomic<int64_t> tasks_busy_waiting = 0;
+		std::atomic<int64_t> tasks_quit = 0;
+		Vector<WorkerThreadPool::TaskID> task_ids;
+		bool started_current_thread = false;
+		bool done = false;
+		int progress_start = 0;
+
+	public:
+		GroupTaskData(
+				TaskManagerID p_task_manager_id,
+				C *p_instance,
+				M p_method,
+				U p_userdata,
+				int p_elements,
+				R p_task_step_callback,
+				const String &p_task,
+				const String &p_description,
+				bool p_can_cancel,
+				int p_tasks,
+				bool p_high_priority,
+				bool p_runs_current_thread = false,
+				bool p_progress_enabled = true,
+				Ref<EditorProgressGDDC> p_progress = nullptr,
+				int p_progress_start = 0) :
+				task_manager_id(p_task_manager_id),
+				instance(p_instance),
+				method(p_method),
+				userdata(p_userdata),
+				elements(p_elements),
+				tasks(p_tasks == -1 ? TaskManager::get_max_thread_count() : p_tasks),
+				task_step_desc_callback(p_task_step_callback),
+				task(p_task),
+				description(p_description),
+				can_cancel(p_can_cancel),
+				high_priority(p_high_priority),
+				progress_start(p_progress_start) {
+			progress_enabled = p_progress_enabled;
+			progress = p_progress;
+			runs_current_thread = p_runs_current_thread;
+		}
+
+		String get_current_task_step_description() override {
+			if (elements == 0) {
+				return "<UNKNOWN>";
+			}
+			return (instance->*task_step_desc_callback)(last_completed < elements ? (int)last_completed : elements - 1, userdata);
+		}
+
+		void start_internal() override {
+			if (runs_current_thread) {
+				// random group id
+				started_current_thread = true;
+			} else {
+				for (int i = 0; i < tasks; i++) {
+					task_ids.push_back(TaskManager::get_thread_pool()->add_template_task(this, &GroupTaskData::task_callback, userdata, high_priority, task + "_" + itos(i)));
+				}
+			}
+			if (progress_enabled && progress.is_null()) {
+				progress = EditorProgressGDDC::create(nullptr, task + itos(task_manager_id), description, elements, can_cancel);
+			}
+		}
+
+		bool _do_one_iteration(bool p_no_memory_check = false) {
+			// if we're using too much memory, wait until it goes down
+			if (unlikely(is_memory_usage_too_high() && !canceled && !p_no_memory_check)) {
+				tasks_busy_waiting++;
+				while (is_memory_usage_too_high() && !canceled) {
+					if (tasks_busy_waiting == tasks || elements - last_completed == tasks_busy_waiting) {
+						// all tasks are busy waiting, so we should break to prevent a deadlock and just deal with the potential thrashing.
+						break;
+					}
+					OS::get_singleton()->delay_usec(10000);
+				}
+				tasks_busy_waiting--;
+			}
+			if (unlikely(canceled)) {
+				return true;
+			}
+
+			int64_t work_index = current_work_index++;
+
+			if (work_index >= elements) {
+				return true;
+			}
+			(instance->*method)(work_index, userdata);
+
+			// This is the only way to ensure posting is done when all tasks are really complete.
+			int64_t completed_amount = ++last_completed;
+
+			if (completed_amount == elements) {
+				done = true; // TODO: check that this doesn't break
+				return true;
+			}
+			return false;
+		}
+
+		void task_callback(void *p_userdata) {
+			TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+			bool no_memory_check = tasks == 1;
+			while (true) {
+				if (_do_one_iteration(no_memory_check)) {
+					break;
+				}
+			}
+			TaskManager::get_singleton()->set_thread_task_id(-1);
+			tasks_quit++;
+		}
+
+		bool is_done() const override {
+			if (runs_current_thread) {
+				return last_completed >= elements;
+			}
+			if (canceled) {
+				return tasks_quit >= tasks;
+			}
+			return done;
+		}
+
+		inline int get_current_task_step_value() override {
+			return last_completed + progress_start;
+		}
+
+		void run_on_current_thread() override {
+			if (canceled) {
+				return;
+			}
+			TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+			uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
+			for (int i = 0; i < elements; i++) {
+				if (_do_one_iteration(true) || OS::get_singleton()->get_ticks_usec() - last_progress_upd > 50000) {
+					if (update_progress()) {
+						break;
+					}
+					last_progress_upd = OS::get_singleton()->get_ticks_usec();
+				}
+			}
+			TaskManager::get_singleton()->set_thread_task_id(-1);
+		}
+
+		void wait_for_task_completion_internal() override {
+			if (!runs_current_thread) {
+				for (auto task_id : task_ids) {
+					TaskManager::get_thread_pool()->wait_for_task_completion(task_id);
+				}
+			}
+		}
+	};
+
+	template <typename U>
+	class TaskData : public BaseTemplateTaskData {
+		TaskManagerID task_manager_id;
+		std::shared_ptr<TaskRunnerStruct> cb_struct;
+		U userdata;
+		String description;
+		bool can_cancel = false;
+		bool high_priority = false;
+		bool done = false;
+		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
+		int progress_step_count = -1;
+
+	protected:
+		virtual void wait_for_task_completion_internal() override {
+			if (!runs_current_thread) {
+				ERR_FAIL_COND_MSG(task_id == -1, "Task not started");
+				TaskManager::get_thread_pool()->wait_for_task_completion(task_id);
+			} else {
+				run_on_current_thread();
+			}
+		}
+		virtual void cancel_internal() override {
+			cb_struct->cancel();
+		}
+
+	public:
+		TaskData(
+				TaskManagerID p_task_manager_id,
+				std::shared_ptr<TaskRunnerStruct> task_cancelled_callback,
+				U p_userdata,
+				const String &p_description,
+				int progress_steps = -1,
+				bool p_can_cancel = false,
+				bool p_high_priority = false,
+				bool p_progress_enabled = true,
+				bool p_runs_current_thread = false) :
+				task_manager_id(p_task_manager_id),
+				cb_struct(task_cancelled_callback),
+				userdata(p_userdata),
+				description(p_description),
+				can_cancel(p_can_cancel),
+				high_priority(p_high_priority),
+				progress_step_count(progress_steps) {
+			progress_enabled = p_progress_enabled;
+			runs_current_thread = p_runs_current_thread;
+		}
+
+		void run_internal(void *p_data) {
+			if (canceled || done) {
+				return;
+			}
+			TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+			cb_struct->run(p_data);
+			TaskManager::get_singleton()->set_thread_task_id(-1);
+			done = true;
+		}
+		virtual void run_on_current_thread() override {
+			run_internal(userdata);
+		}
+		virtual int get_current_task_step_value() override {
+			return cb_struct->get_current_task_step_value();
+		}
+		virtual String get_current_task_step_description() override {
+			return cb_struct->get_current_task_step_description();
+		}
+		virtual bool is_done() const override {
+			return done;
+		}
+		void start_internal() override {
+			if (task_id != -1 || done || canceled) {
+				return;
+			}
+			if (!cb_struct->pre_run()) {
+				done = true;
+				ERR_FAIL_MSG("Failed to pre-run task: " + description);
+			}
+			if (runs_current_thread) {
+				// random group id
+				task_id = abs(rand());
+			} else {
+				task_id = TaskManager::get_thread_pool()->add_template_task(this, &TaskData::run_internal, userdata, high_priority, description);
+			}
+			if (progress_enabled && progress.is_null()) {
+				progress = EditorProgressGDDC::create(nullptr, description + itos(task_id), description, progress_step_count, can_cancel);
+				if (progress_step_count == -1) {
+					progress->set_progress_length(true);
+				}
+			}
+		}
+
+		virtual bool auto_close_progress_bar() override {
+			return cb_struct->auto_close_progress_bar();
+		}
+	};
+
+	class DownloadTaskData : public BaseTemplateTaskData {
+		String download_url;
+		String save_path;
+		int64_t size = -1;
+		int64_t start_time = 0;
+		Vector<int64_t> speed_history;
+		bool silent = false;
+		float download_progress = 0.0f;
+		Error download_error = OK;
+		bool done = false;
+
+	protected:
+		virtual void wait_for_task_completion_internal() override;
+
+	public:
+		DownloadTaskData(const String &p_download_url, const String &p_save_path, bool p_silent = false);
+
+		virtual void run_on_current_thread() override;
+		virtual int get_current_task_step_value() override;
+		virtual String get_current_task_step_description() override;
+		virtual bool is_done() const override;
+		virtual void cancel_internal() override;
+		virtual void start_internal() override;
+		void callback_data(void *p_data);
+		Error get_download_error() const { return download_error; }
+	};
+
+	class DownloadQueueThread {
+		Thread *thread = nullptr;
+		Thread *worker_thread = nullptr;
+		Mutex write_mutex;
+		std::atomic<bool> running = true;
+		std::atomic<bool> waiting = false;
+		mutable BinaryMutex worker_mutex;
+		ConditionVariable worker_cv;
+		std::shared_ptr<DownloadTaskData> running_task;
+		std::atomic<DownloadTaskID> current_task_id = 0;
+
+		ParallelFlatHashMap<DownloadTaskID, std::shared_ptr<DownloadTaskData>> tasks;
+		StaticParallelQueue<DownloadTaskID, 1024> queue;
+
+		void main_loop();
+		void worker_main_loop();
+		static void thread_func(void *p_userdata);
+		static void worker_thread_func(void *p_userdata);
+
+	public:
+		DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
+		Error wait_for_task_completion(DownloadTaskID p_task_id);
+		DownloadQueueThread();
+		~DownloadQueueThread();
+	};
+
+protected:
+	static TaskManager *singleton;
+	ParallelFlatHashMap<TaskManagerID, std::shared_ptr<BaseTemplateTaskData>> group_id_to_description;
+	ParalellQueue<std::shared_ptr<BaseMainThreadDispatchData>> main_thread_dispatch_queue;
+	DownloadQueueThread download_thread;
+	WorkerThreadPool *named_pool = nullptr;
+	std::atomic<TaskManagerID> current_task_id = 0;
+	TaskManagerID main_thread_task_id = -1;
+	LocalVector<Thread::ID> thread_index_to_thread_id;
+	LocalVector<TaskManagerID> thread_index_to_task_ids;
+
+	bool updating_bg = false;
+
+	void _set_thread_name_task(uint32_t i, void *p_userdata);
+	bool _dispatch_to_main_thread(std::shared_ptr<BaseMainThreadDispatchData> p_data);
+
+	void process_main_thread_dispatch_queue_for(int64_t time_usec);
+	void cancel_main_thread_dispatch_queue();
+
+public:
+	TaskManager();
+	~TaskManager();
+	static TaskManager *get_singleton();
+
+	static int get_max_thread_count();
+
+	static WorkerThreadPool *get_thread_pool();
+
+	template <typename C, typename M, typename U, typename R>
+	TaskManagerID add_group_task(
+			C *p_instance,
+			M p_method,
+			U p_userdata,
+			int p_elements,
+			R p_task_step_callback,
+			const String &p_task,
+			const String &p_label,
+			bool p_can_cancel = true,
+			int p_tasks = -1,
+			bool p_high_priority = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
+		ERR_FAIL_COND_V_MSG(p_elements == 0, -1, "Task has 0 elements, this is not allowed!");
+		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+		if (p_tasks <= 0) {
+			p_tasks = (int)GDREConfig::get_singleton()->get_setting("max_cores_to_use", -1);
+			if (p_tasks <= 0) {
+				p_tasks = MAX(1, get_max_thread_count() - 1);
+			}
+		}
+		auto group_id = ++current_task_id;
+
+		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(group_id,
+				p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority,
+				is_singlethreaded,
+				p_show_progress, p_preexisting_progress, p_progress_start);
+		task->start();
+		bool already_exists = false;
+		group_id_to_description.try_emplace_l(group_id, [&](auto &v) { already_exists = true; }, task);
+		if (already_exists) {
+			CRASH_COND_MSG(already_exists, "Task already exists?!?!?!");
+		}
+		return group_id;
+	}
+
+	template <typename C, typename M, typename U, typename R>
+	Error run_multithreaded_group_task(
+			C *p_instance,
+			M p_method,
+			U p_userdata,
+			int p_elements,
+			R p_task_step_callback,
+			const String &p_task,
+			const String &p_label,
+			bool p_can_cancel = true,
+			int p_tasks = -1,
+			bool p_high_priority = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
+		ERR_FAIL_COND_V_MSG(p_elements == 0, ERR_INVALID_PARAMETER, "Task has 0 elements, this is not allowed!");
+		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, p_preexisting_progress, p_progress_start, p_show_progress);
+		return wait_for_task_completion(task_id);
+	}
+
+	template <typename C, typename M, typename U, typename R>
+	Error run_group_task_on_current_thread(
+			C *p_instance,
+			M p_method,
+			U p_userdata,
+			int p_elements,
+			R p_task_step_callback,
+			const String &p_task,
+			const String &p_label,
+			bool p_can_cancel = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
+		ERR_FAIL_COND_V_MSG(p_elements == 0, ERR_INVALID_PARAMETER, "Task has 0 elements, this is not allowed!");
+		auto group_id = ++current_task_id;
+
+		GroupTaskData<C, M, U, R> task = GroupTaskData<C, M, U, R>(group_id, p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, -1, true, true, p_show_progress, p_preexisting_progress, p_progress_start);
+		task.start();
+		return task.wait_for_completion() ? ERR_SKIP : OK;
+	}
+
+	template <typename U>
+	TaskManagerID add_task(
+			std::shared_ptr<TaskRunnerStruct> p_task_runner,
+			U p_userdata,
+			const String &p_description,
+			int progress_steps = -1,
+			bool p_can_cancel = false,
+			bool p_high_priority = false,
+			bool p_progress_enabled = true,
+			bool p_runs_current_thread = false) {
+		auto task_id = ++current_task_id;
+		auto task = std::make_shared<TaskData<U>>(task_id, p_task_runner, p_userdata, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, p_runs_current_thread);
+		task->start();
+		bool already_exists = false;
+
+		group_id_to_description.try_emplace_l(task_id, [&](auto &v) { already_exists = true; }, task);
+		if (already_exists) {
+			CRASH_COND_MSG(already_exists, "Task already exists?!?!?!");
+		}
+		return task_id;
+	}
+
+	template <typename U>
+	Error run_task(
+			std::shared_ptr<TaskRunnerStruct> p_task_runner,
+			U p_userdata,
+			const String &p_description,
+			int progress_steps = -1,
+			bool p_can_cancel = false,
+			bool p_high_priority = false,
+			bool p_progress_enabled = true) {
+		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+		auto task_id = add_task(p_task_runner, p_userdata, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, is_singlethreaded);
+		return wait_for_task_completion(task_id);
+	}
+
+	template <typename C, typename M, typename U>
+	bool dispatch_to_main_thread(C *p_instance, M p_method, U p_userdata) {
+		std::shared_ptr<BaseMainThreadDispatchData> data = std::make_shared<TemplateMainThreadDispatchData<C, M, U>>(get_thread_task_id(), p_instance, p_method, p_userdata);
+		return _dispatch_to_main_thread(data);
+	}
+
+	template <typename U>
+	bool dispatch_to_main_thread(std::function<void(U)> func, U userdata) {
+		std::shared_ptr<BaseMainThreadDispatchData> data = std::make_shared<FunctionMainThreadDispatchData<U>>(get_thread_task_id(), func, userdata);
+		return _dispatch_to_main_thread(data);
+	}
+
+	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
+	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
+	Error wait_for_task_completion(TaskManagerID p_task_id, uint64_t timeout_s_no_progress = 0);
+	bool is_current_task_completed(TaskManagerID p_task_id) const;
+	bool is_current_task_canceled();
+	bool is_current_task_timed_out();
+	static constexpr int64_t FRAME_TIME_US = 10000;
+	bool wait_until_next_frame(int64_t p_time_usec = FRAME_TIME_US);
+	bool update_progress_bg(bool p_force_refresh = false, bool called_from_process = false, bool *r_did_redraw = nullptr);
+	void set_thread_task_id(TaskManagerID p_task_manager_id);
+	TaskManagerID get_thread_task_id() const;
+	void cancel_all();
+};
+
+class DownloadToken {
+	String url;
+	String save_path;
+	TaskManager::DownloadTaskID task_id;
+
+	DownloadToken(const String &p_url, const String &p_save_path, TaskManager::DownloadTaskID p_task_id) :
+			url(p_url), save_path(p_save_path), task_id(p_task_id) {}
+
+	void cancel() {
+		TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
+	}
+};

@@ -1,0 +1,331 @@
+name: Build & Deploy Godot RE Tools (Web)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Required for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  GODOT_REPOSITORY: nikitalita/godot
+  GODOT_REF: gdre-wb-babc272d44e
+  EMSCRIPTEN_VERSION: "4.0.10"
+  # SCons flags matching the upstream CI
+  SCONSFLAGS: >-
+    warnings=no
+    werror=no
+    module_text_server_fb_enabled=yes
+    minizip=yes
+    deprecated=yes
+    module_camera_enabled=no
+    module_mobile_vr_enabled=no
+    module_upnp_enabled=no
+    module_websocket_enabled=no
+    module_csg_enabled=yes
+    module_gridmap_enabled=yes
+    use_static_cpp=yes
+    builtin_freetype=yes
+    builtin_libpng=yes
+    builtin_zlib=yes
+    builtin_libwebp=yes
+    builtin_libvorbis=yes
+    builtin_libogg=yes
+    disable_3d=no
+    disable_godot_mono_decomp=yes
+    threads=no
+    production=yes
+
+jobs:
+  # ---------------------------------------------------------------
+  # JOB 1: Build the Godot web export template (wasm)
+  # ---------------------------------------------------------------
+  build-template:
+    name: "Build Godot Web Template"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout gdsdecomp (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: gdsdecomp
+          fetch-depth: 0
+
+      - name: Restore cached web template
+        id: cache-template
+        uses: actions/cache@v4
+        with:
+          path: godot/bin/web_template.zip
+          key: web-template-${{ env.GODOT_REF }}-${{ hashFiles('gdsdecomp/**/*.cpp', 'gdsdecomp/**/*.h', 'gdsdecomp/SCsub', 'gdsdecomp/config.py') }}
+
+      - name: Checkout Godot fork
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GODOT_REPOSITORY }}
+          ref: ${{ env.GODOT_REF }}
+          path: godot
+
+      - name: Symlink gdsdecomp into Godot modules
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        run: ln -s $GITHUB_WORKSPACE/gdsdecomp $GITHUB_WORKSPACE/godot/modules/gdsdecomp
+
+      - name: Install Linux build dependencies
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev \
+            libpulse-dev libudev-dev libxi-dev libxrandr-dev \
+            libwayland-dev yasm
+
+      - name: Set up Python 3.10
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install SCons
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        run: pip install scons==4.10.1
+
+      - name: Set up Emscripten
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSCRIPTEN_VERSION }}
+          actions-cache-folder: "emsdk-cache"
+
+      - name: Verify emcc
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        run: emcc --version
+
+      - name: Set up Rust (stable + nightly + wasm32 target)
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust nightly for wasm
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install nightly
+          rustup target add wasm32-unknown-emscripten --toolchain nightly
+          rustup component add rust-src --toolchain nightly
+          cargo install cbindgen --quiet
+
+      - name: Restore SCons build cache
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.scons_cache
+          key: scons-web-${{ env.GODOT_REF }}-${{ github.run_id }}
+          restore-keys: |
+            scons-web-${{ env.GODOT_REF }}-
+
+      - name: Build Godot web template
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        working-directory: godot
+        env:
+          SCONS_CACHE: ~/.scons_cache
+          SCONS_CACHE_LIMIT: 7168
+        run: |
+          scons platform=web target=template_release ${{ env.SCONSFLAGS }}
+
+      - name: Package web template
+        if: steps.cache-template.outputs.cache-hit != 'true'
+        working-directory: godot
+        run: |
+          mkdir -p bin
+          # Godot web template is a zip of the wasm + js files
+          cd bin
+          zip web_template.zip \
+            godot.web.template_release.wasm32.nothreads.js \
+            godot.web.template_release.wasm32.nothreads.wasm \
+            godot.web.template_release.wasm32.nothreads.audio.worklet.js \
+            godot.web.template_release.wasm32.nothreads.worker.js \
+            2>/dev/null || \
+          zip web_template.zip godot.web.template_release.wasm32.* 2>/dev/null
+          ls -lh web_template.zip
+
+      - name: Upload template artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-template
+          path: godot/bin/web_template.zip
+          retention-days: 7
+
+  # ---------------------------------------------------------------
+  # JOB 2: Export the Godot project using the template → HTML
+  # ---------------------------------------------------------------
+  export-project:
+    name: "Export & Deploy to GitHub Pages"
+    needs: build-template
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout gdsdecomp (this repo)
+        uses: actions/checkout@v4
+
+      - name: Download web template
+        uses: actions/download-artifact@v4
+        with:
+          name: web-template
+          path: web-template
+
+      - name: Install Godot 4.7 editor (headless)
+        run: |
+          # Download the matching Godot editor build from gdsdecomp releases
+          # Fall back to nightly build of the fork if not available
+          GODOT_VER="4.7-dev"
+          # Try to get a pre-built editor from the project's own releases
+          curl -L "https://github.com/GDRETools/gdsdecomp/releases/latest/download/GDRE_tools.x86_64.zip" \
+            -o gdre_editor.zip 2>/dev/null && \
+            unzip gdre_editor.zip -d gdre_bin && \
+            chmod +x gdre_bin/gdre_tools.x86_64 && \
+            echo "GODOT_BIN=./gdre_bin/gdre_tools.x86_64" >> $GITHUB_ENV || \
+          (
+            # Fallback: build Godot editor headless from source
+            echo "Falling back to building editor from source..."
+            echo "NEED_EDITOR_BUILD=true" >> $GITHUB_ENV
+          )
+
+      - name: Set up Python + SCons (for editor build fallback)
+        if: env.NEED_EDITOR_BUILD == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build Godot headless editor (fallback)
+        if: env.NEED_EDITOR_BUILD == 'true'
+        run: |
+          pip install scons
+          sudo apt-get install -y build-essential pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev libpulse-dev \
+            libudev-dev libxi-dev libxrandr-dev libwayland-dev
+          git clone --depth=1 --branch ${{ env.GODOT_REF }} \
+            https://github.com/${{ env.GODOT_REPOSITORY }}.git godot-editor
+          ln -s $GITHUB_WORKSPACE/modules/gdsdecomp godot-editor/modules/gdsdecomp 2>/dev/null || true
+          cd godot-editor
+          scons platform=linuxbsd target=editor arch=x86_64 \
+            warnings=no werror=no \
+            module_text_server_fb_enabled=yes minizip=yes deprecated=yes \
+            disable_godot_mono_decomp=yes \
+            -j$(nproc)
+          echo "GODOT_BIN=$GITHUB_WORKSPACE/godot-editor/bin/godot.linuxbsd.editor.x86_64" >> $GITHUB_ENV
+
+      - name: Prepare export directory
+        run: mkdir -p exported_web
+
+      - name: Set up export_presets.cfg with correct template path
+        run: |
+          TEMPLATE_ZIP="$GITHUB_WORKSPACE/web-template/web_template.zip"
+          # Update the Web preset export_path and custom template
+          python3 - <<'PYEOF'
+          import re, os
+          cfg_path = "standalone/export_presets.cfg"
+          template_zip = os.environ.get("TEMPLATE_ZIP", "")
+          with open(cfg_path, "r") as f:
+              content = f.read()
+
+          # Find the Web preset block (preset.3) and update fields
+          # Set export_path
+          content = re.sub(
+              r'(name="Web".*?export_path=)"[^"]*"',
+              r'\1"../exported_web/index.html"',
+              content, flags=re.DOTALL
+          )
+          # Set custom template debug + release
+          content = re.sub(
+              r'(name="Web".*?custom_template/debug=)"[^"]*"',
+              rf'\1"{template_zip}"',
+              content, flags=re.DOTALL
+          )
+          content = re.sub(
+              r'(name="Web".*?custom_template/release=)"[^"]*"',
+              rf'\1"{template_zip}"',
+              content, flags=re.DOTALL
+          )
+          with open(cfg_path, "w") as f:
+              f.write(content)
+          print("Updated export_presets.cfg")
+          PYEOF
+
+      - name: Import project resources (first run)
+        working-directory: standalone
+        run: |
+          ${{ env.GODOT_BIN }} --headless --import --quit 2>&1 | tail -20 || true
+
+      - name: Export web build
+        working-directory: standalone
+        run: |
+          ${{ env.GODOT_BIN }} --headless --export-release "Web" \
+            ../exported_web/index.html 2>&1 | tail -30
+
+      - name: Verify export output
+        run: |
+          echo "=== Exported files ==="
+          ls -lh exported_web/
+          test -f exported_web/index.html || (echo "ERROR: index.html missing!" && exit 1)
+          test -f exported_web/index.wasm || (echo "ERROR: index.wasm missing!" && exit 1)
+
+      - name: Add COOP/COEP service worker (required for SharedArrayBuffer)
+        run: |
+          cat > exported_web/coi-serviceworker.js << 'EOF'
+          /* coi-serviceworker v0.1.7 - Marak Squires + Guido Zuidhof */
+          self.addEventListener("install", () => self.skipWaiting());
+          self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+          async function handleFetch(request) {
+            if (request.cache === "only-if-cached" && request.mode !== "same-origin") return;
+            const r = await fetch(request);
+            const headers = new Headers(r.headers);
+            headers.set("Cross-Origin-Opener-Policy", "same-origin");
+            headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+            return new Response(r.body, { status: r.status, statusText: r.statusText, headers });
+          }
+          self.addEventListener("fetch", (event) => event.respondWith(handleFetch(event.request)));
+          EOF
+
+          # Inject service worker registration into the HTML
+          python3 - << 'PYEOF'
+          with open("exported_web/index.html", "r") as f:
+              html = f.read()
+          sw_script = """
+          <script>
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('coi-serviceworker.js')
+                .then(reg => console.log('COI SW registered'))
+                .catch(err => console.warn('COI SW failed:', err));
+            });
+          }
+          </script>
+          """
+          html = html.replace("</head>", sw_script + "</head>", 1)
+          with open("exported_web/index.html", "w") as f:
+              f.write(html)
+          print("Injected COI service worker")
+          PYEOF
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: exported_web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

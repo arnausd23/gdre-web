@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="PckCreator" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_files">
+			<return type="int" enum="Error" />
+			<param index="0" name="file_paths_to_pack" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="finish_pck">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="get_error_message" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="pck_create">
+			<return type="int" enum="Error" />
+			<param index="0" name="pck_path" type="String" />
+			<param index="1" name="dir" type="String" />
+			<param index="2" name="include_filters" type="PackedStringArray" default="PackedStringArray()" />
+			<param index="3" name="exclude_filters" type="PackedStringArray" default="PackedStringArray()" />
+			<description>
+			</description>
+		</method>
+		<method name="reset">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="start_pck">
+			<return type="void" />
+			<param index="0" name="pck_path" type="String" />
+			<param index="1" name="pck_version" type="int" />
+			<param index="2" name="ver_major" type="int" />
+			<param index="3" name="ver_minor" type="int" />
+			<param index="4" name="ver_rev" type="int" />
+			<param index="5" name="encrypt" type="bool" default="false" />
+			<param index="6" name="embed" type="bool" default="false" />
+			<param index="7" name="exe_to_embed" type="String" default="&quot;&quot;" />
+			<param index="8" name="watermark" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="embed" type="bool" setter="set_embed" getter="get_embed" default="false">
+		</member>
+		<member name="encrypt" type="bool" setter="set_encrypt" getter="get_encrypt" default="false">
+		</member>
+		<member name="exe_to_embed" type="String" setter="set_exe_to_embed" getter="get_exe_to_embed" default="&quot;&quot;">
+		</member>
+		<member name="pack_version" type="int" setter="set_pack_version" getter="get_pack_version" default="2">
+		</member>
+		<member name="ver_major" type="int" setter="set_ver_major" getter="get_ver_major" default="4">
+		</member>
+		<member name="ver_minor" type="int" setter="set_ver_minor" getter="get_ver_minor" default="4">
+		</member>
+		<member name="ver_rev" type="int" setter="set_ver_rev" getter="get_ver_rev" default="0">
+		</member>
+		<member name="watermark" type="String" setter="set_watermark" getter="get_watermark" default="&quot;&quot;">
+		</member>
+	</members>
+</class>

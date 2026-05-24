@@ -1,0 +1,56 @@
+#pragma once
+
+#include "core/object/object.h"
+#include "core/object/ref_counted.h"
+#include "core/os/mutex.h"
+
+#include "plugin_info.h"
+#include "plugin_source.h"
+
+class PluginManager : public Object {
+	GDCLASS(PluginManager, Object)
+
+private:
+	static PluginManager *singleton;
+	static constexpr const char *PLUGIN_CACHE_ENV_VAR = "GDRE_PLUGIN_CACHE_DIR";
+	static constexpr const char *STATIC_PLUGIN_CACHE_PATH = "res://gdre_static_plugin_cache.json";
+	static constexpr const int MAX_SOURCES = 64;
+	static Ref<PluginSource> sources[MAX_SOURCES];
+	static int source_count;
+	static bool prepopping;
+	static HashMap<String, PluginVersion> plugin_version_cache;
+	static Mutex plugin_version_cache_mutex;
+	static HashMap<String, Pair<String, String>> known_bad_plugin_versions;
+
+	// Source management
+	static Ref<PluginSource> get_source(const String &plugin_name);
+	static void load_plugin_version_cache_file(const String &cache_file, bool prepop = false);
+	static void load_plugin_version_cache();
+	static void save_plugin_version_cache();
+	static Error populate_plugin_version_hashes(PluginVersion &plugin_version);
+
+	static PluginVersion _get_plugin_version_for_current_release_info(const ReleaseInfo &release_info, Error &r_error);
+
+protected:
+	static void _bind_methods();
+
+public:
+	static void _init();
+	// Main interface methods
+	static String get_plugin_cache_path();
+	static Dictionary get_plugin_info(const String &plugin_name, const Vector<String> &hashes);
+	static void load_cache();
+	static void save_cache();
+	static Error prepop_cache(const Vector<String> &plugin_names);
+	static bool is_prepopping();
+	// PluginVersion cache management
+	static PluginVersion get_cached_plugin_version(const String &cache_key);
+	static void erase_cached_plugin_version(const String &cache_key);
+	static void cache_plugin_version(const String &cache_key, const PluginVersion &version);
+	static PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info, Error &r_error);
+	static PluginVersion get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error);
+	// Source management
+	static void register_source(Ref<PluginSource> source, bool at_front = false);
+	static void unregister_source(Ref<PluginSource> source);
+	static void print_plugin_cache();
+};

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="decompiled_out/**/*.cs" />
+    <Compile Remove="realworld_test_out/**/*.cs" />
+    <Compile Include="../original/TestCollectionExpressionInitializers.cs" Link="TestCollectionExpressionInitializers.cs" />
+    <Compile Include="../original/TestCollectionInitWithSpread.cs" Link="TestCollectionInitWithSpread.cs" />
+    <Compile Include="../original/TestFuncInitializer.cs" Link="TestFuncInitializer.cs" />
+    <Compile Include="../original/TestNestedCollectionExpressionInitializers.cs" Link="TestNestedCollectionExpressionInitializers.cs" />
+    <Compile Include="../original/TestCtorBoundaryCoverage.cs" Link="TestCtorBoundaryCoverage.cs" />
+    <Compile Include="../original/TestInterleavedStaticCollectionInit.cs" Link="TestInterleavedStaticCollectionInit.cs" />
+    <Compile Include="../original/TestStatementAnnotationLiftCoverage.cs" Link="TestStatementAnnotationLiftCoverage.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ResourceCompatLoader" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_resource_format_loader" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="loader" type="CompatFormatLoader" />
+			<param index="1" name="at_front" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="add_resource_object_converter" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="converter" type="ResourceCompatConverter" />
+			<param index="1" name="at_front" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="fake_load" qualifiers="static">
+			<return type="Resource" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="get_dependencies" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="add_types" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="get_resource_info" qualifiers="static">
+			<return type="Dictionary" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="get_resource_script_class" qualifiers="static">
+			<return type="String" />
+			<param index="0" name="path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_resource_type" qualifiers="static">
+			<return type="String" />
+			<param index="0" name="path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="gltf_load" qualifiers="static">
+			<return type="Resource" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="handles_resource" qualifiers="static">
+			<return type="bool" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="is_default_gltf_load" qualifiers="static">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="is_globally_available" qualifiers="static">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="make_globally_available" qualifiers="static">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="non_global_load" qualifiers="static">
+			<return type="Resource" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="real_load" qualifiers="static">
+			<return type="Resource" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="type_hint" type="String" default="&quot;&quot;" />
+			<param index="2" name="cache_mode" type="int" enum="ResourceFormatLoader.CacheMode" default="1" />
+			<description>
+			</description>
+		</method>
+		<method name="remove_resource_format_loader" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="loader" type="CompatFormatLoader" />
+			<description>
+			</description>
+		</method>
+		<method name="remove_resource_object_converter" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="converter" type="ResourceCompatConverter" />
+			<description>
+			</description>
+		</method>
+		<method name="resource_to_string" qualifiers="static">
+			<return type="String" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="skip_cr" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="save_custom" qualifiers="static">
+			<return type="int" enum="Error" />
+			<param index="0" name="resource" type="Resource" />
+			<param index="1" name="path" type="String" />
+			<param index="2" name="ver_major" type="int" />
+			<param index="3" name="ver_minor" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="set_default_gltf_load" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="enable" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="to_binary" qualifiers="static">
+			<return type="int" enum="Error" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="dst" type="String" />
+			<param index="2" name="flags" type="int" default="0" />
+			<description>
+			</description>
+		</method>
+		<method name="to_text" qualifiers="static">
+			<return type="int" enum="Error" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="dst" type="String" />
+			<param index="2" name="flags" type="int" default="0" />
+			<param index="3" name="original_path" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="unmake_globally_available" qualifiers="static">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="FAKE_LOAD" value="0" enum="LoadType">
+		</constant>
+		<constant name="NON_GLOBAL_LOAD" value="1" enum="LoadType">
+		</constant>
+		<constant name="GLTF_LOAD" value="2" enum="LoadType">
+		</constant>
+		<constant name="REAL_LOAD" value="3" enum="LoadType">
+		</constant>
+	</constants>
+</class>

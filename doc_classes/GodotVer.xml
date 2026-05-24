@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GodotVer" inherits="SemVer" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="create_godotver" qualifiers="static">
+			<return type="GodotVer" />
+			<param index="0" name="major" type="int" />
+			<param index="1" name="minor" type="int" />
+			<param index="2" name="patch" type="int" />
+			<param index="3" name="prerelease" type="String" default="&quot;&quot;" />
+			<param index="4" name="build_metadata" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="is_not_custom_build">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="parse_godotver" qualifiers="static">
+			<return type="GodotVer" />
+			<param index="0" name="ver_text" type="String" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

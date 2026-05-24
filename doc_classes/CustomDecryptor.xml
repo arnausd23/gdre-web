@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="CustomDecryptor" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="_parse_and_decrypt" qualifiers="virtual">
+			<return type="Dictionary" />
+			<param index="0" name="file" type="FileAccess" />
+			<param index="1" name="key" type="PackedByteArray" />
+			<param index="2" name="non_pack_file" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="parse_and_decrypt">
+			<return type="Dictionary" />
+			<param index="0" name="file" type="FileAccess" />
+			<param index="1" name="key" type="PackedByteArray" />
+			<param index="2" name="non_pack_file" type="bool" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="Glob" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="dirs_in_names" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="names" type="PackedStringArray" />
+			<param index="1" name="dirs" type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="fnmatch" qualifiers="static">
+			<return type="bool" />
+			<param index="0" name="name" type="String" />
+			<param index="1" name="pattern" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="fnmatch_list" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="names" type="PackedStringArray" />
+			<param index="1" name="patterns" type="PackedStringArray" />
+			<param index="2" name="exclude_matches" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="glob" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="pathname" type="String" />
+			<param index="1" name="hidden" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="glob_list" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="pathnames" type="PackedStringArray" />
+			<param index="1" name="hidden" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="names_in_dirs" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="names" type="PackedStringArray" />
+			<param index="1" name="dirs" type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="pattern_match_list" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="names" type="PackedStringArray" />
+			<param index="1" name="patterns" type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="rglob" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="pathname" type="String" />
+			<param index="1" name="hidden" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="rglob_list" qualifiers="static">
+			<return type="PackedStringArray" />
+			<param index="0" name="pathnames" type="PackedStringArray" />
+			<param index="1" name="hidden" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

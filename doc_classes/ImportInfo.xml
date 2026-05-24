@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ImportInfo" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="as_text" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="full" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="copy" qualifiers="static">
+			<return type="ImportInfo" />
+			<param index="0" name="import_info" type="ImportInfo" />
+			<description>
+			</description>
+		</method>
+		<method name="from_json" qualifiers="static">
+			<return type="ImportInfo" />
+			<param index="0" name="json" type="Dictionary" />
+			<description>
+			</description>
+		</method>
+		<method name="get_compat_type" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_iinfo_val" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="p_section" type="String" />
+			<param index="1" name="p_prop" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_iitype" qualifiers="const">
+			<return type="int" enum="ImportInfo.IInfoType" />
+			<description>
+			</description>
+		</method>
+		<method name="get_importer" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_param" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="key" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_uid" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_ver_major" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_ver_minor" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="has_dest_file" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="dest_file" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="has_param" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="key" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="is_auto_converted" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="is_import" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="load_from_file" qualifiers="static">
+			<return type="ImportInfo" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="ver_major" type="int" default="0" />
+			<param index="2" name="ver_minor" type="int" default="0" />
+			<description>
+			</description>
+		</method>
+		<method name="save_to">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_iinfo_val">
+			<return type="void" />
+			<param index="0" name="p_section" type="String" />
+			<param index="1" name="p_prop" type="String" />
+			<param index="2" name="p_val" type="Variant" />
+			<description>
+			</description>
+		</method>
+		<method name="set_param">
+			<return type="void" />
+			<param index="0" name="key" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+			</description>
+		</method>
+		<method name="to_json" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="additional_sources" type="PackedStringArray" setter="set_additional_sources" getter="get_additional_sources" default="PackedStringArray()">
+		</member>
+		<member name="dest_files" type="PackedStringArray" setter="set_dest_files" getter="get_dest_files" default="PackedStringArray()">
+		</member>
+		<member name="export_dest" type="String" setter="set_export_dest" getter="get_export_dest" default="&quot;&quot;">
+		</member>
+		<member name="export_lossless_copy" type="String" setter="set_export_lossless_copy" getter="get_export_lossless_copy" default="&quot;&quot;">
+		</member>
+		<member name="import_md_path" type="String" setter="set_import_md_path" getter="get_import_md_path" default="&quot;&quot;">
+		</member>
+		<member name="metadata_prop" type="Dictionary" setter="set_metadata_prop" getter="get_metadata_prop" default="{}">
+		</member>
+		<member name="params" type="Dictionary" setter="set_params" getter="get_params" default="{}">
+		</member>
+		<member name="preferred_import_path" type="String" setter="set_preferred_resource_path" getter="get_path" default="&quot;&quot;">
+		</member>
+		<member name="source_file" type="String" setter="set_source_file" getter="get_source_file" default="&quot;&quot;">
+		</member>
+		<member name="source_md5" type="String" setter="set_source_md5" getter="get_source_md5" default="&quot;&quot;">
+		</member>
+		<member name="type" type="String" setter="set_type" getter="get_type" default="&quot;&quot;">
+		</member>
+	</members>
+	<constants>
+		<constant name="UNKNOWN" value="-1" enum="LossType">
+		</constant>
+		<constant name="LOSSLESS" value="0" enum="LossType">
+		</constant>
+		<constant name="STORED_LOSSY" value="1" enum="LossType">
+		</constant>
+		<constant name="IMPORTED_LOSSY" value="2" enum="LossType">
+		</constant>
+		<constant name="STORED_AND_IMPORTED_LOSSY" value="3" enum="LossType">
+		</constant>
+		<constant name="BASE" value="0" enum="IInfoType">
+		</constant>
+		<constant name="V2" value="1" enum="IInfoType">
+		</constant>
+		<constant name="MODERN" value="2" enum="IInfoType">
+		</constant>
+		<constant name="DUMMY" value="3" enum="IInfoType">
+		</constant>
+		<constant name="REMAP" value="4" enum="IInfoType">
+		</constant>
+		<constant name="GDEXT" value="5" enum="IInfoType">
+		</constant>
+	</constants>
+</class>

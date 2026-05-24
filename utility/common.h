@@ -1,0 +1,407 @@
+#pragma once
+#include "core/templates/hash_set.h"
+#include "core/variant/variant.h"
+#include "macros.h"
+
+#include <core/io/dir_access.h>
+#include <core/object/class_db.h>
+#include <core/object/object.h>
+#include <core/variant/typed_array.h>
+#include <core/variant/typed_dictionary.h>
+
+class Image;
+class FileAccess;
+namespace gdre {
+Vector<String> get_recursive_dir_list_multithread(
+		const String &dir,
+		const Vector<String> &wildcards = {},
+		bool absolute = true,
+		bool include_hidden = true,
+		const Vector<String> &exclude_filters = {},
+		bool files_first = false,
+		bool exclude_dot_prefix_and_gdignore = false,
+		bool show_progress = false);
+
+Vector<String> get_recursive_dir_list(const String &dir, const Vector<String> &wildcards = {}, bool absolute = true, bool include_hidden = true);
+bool dir_has_any_matching_wildcards(const String &dir, const Vector<String> &wildcards = {});
+
+bool check_header(const Vector<uint8_t> &p_buffer, const char *p_expected_header, int p_expected_len);
+Error ensure_dir(const String &dst_dir);
+void get_strings_from_variant(const Variant &p_var, Vector<String> &r_strings, const String &engine_version = "");
+String get_md5(const String &dir, bool ignore_code_signature = false);
+String get_md5_for_dir(const String &dir, bool ignore_code_signature = false);
+String get_sha256(const String &file_or_dir);
+Error unzip_file_to_dir(const String &zip_path, const String &output_dir);
+Error wget_sync(const String &p_url, Vector<uint8_t> &response, int retries = 5, const Vector<String> &extra_headers = {}, float *p_progress = nullptr, bool *p_cancelled = nullptr);
+
+Error download_file_sync(const String &url, const String &output_path, float *p_progress = nullptr, bool *p_cancelled = nullptr, int64_t *r_size = nullptr);
+Error wpost_sync(const String &p_url, const Vector<uint8_t> &p_data, const Vector<String> &extra_headers = {}, bool gzip = false, float *p_progress = nullptr, bool *p_cancelled = nullptr);
+Error rimraf(const String &dir);
+bool dir_is_empty(const String &dir);
+Error touch_file(const String &path);
+bool store_var_compat(Ref<FileAccess> f, const Variant &p_var, int ver_major, bool p_full_objects = false);
+String get_full_path(const String &p_path, DirAccess::AccessType p_access);
+bool directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files);
+Vector<String> get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
+Vector<String> get_directories_at_recursive(const String &p_dir, bool absolute = true, bool include_hidden = true);
+Vector<String> get_dirs_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
+
+String num_scientific(double p_num);
+String num_scientific(float p_num);
+bool is_fs_path(const String &p_path);
+
+template <class T, class Itr>
+void hashset_insert_iterable(HashSet<T> &hs, const Itr &iterable) {
+	static_assert(std::is_same_v<decltype(iterable.begin()), decltype(iterable.end())>, "Iterable must be a container");
+	for (const T &E : iterable) {
+		hs.insert(E);
+	}
+}
+
+template <class T, class Itr>
+void vector_append_iterable(Vector<T> &vec, const Itr &iterable) {
+	static_assert(std::is_same_v<decltype(iterable.begin()), decltype(iterable.end())>, "Iterable must be a container");
+	for (const T &E : iterable) {
+		vec.push_back(E);
+	}
+}
+
+template <class T>
+Vector<T> hashset_to_vector(const HashSet<T> &hs) {
+	Vector<T> ret;
+	for (const T &E : hs) {
+		ret.push_back(E);
+	}
+	return ret;
+}
+
+template <class T>
+HashSet<T> vector_to_hashset(const Vector<T> &vec) {
+	HashSet<T> ret;
+	for (int i = 0; i < vec.size(); i++) {
+		ret.insert(vec[i]);
+	}
+	return ret;
+}
+
+template <class T>
+Array hashset_to_array(const HashSet<T> &hs) {
+	Array ret;
+	for (const T &E : hs) {
+		ret.push_back(E);
+	}
+	return ret;
+}
+
+template <class T>
+bool vectors_intersect(const Vector<T> &a, const Vector<T> &b) {
+	const Vector<T> &bigger = a.size() > b.size() ? a : b;
+	const Vector<T> &smaller = a.size() > b.size() ? b : a;
+	for (int i = 0; i < smaller.size(); i++) {
+		if (bigger.has(smaller[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+template <class T>
+bool hashset_intersects_vector(const HashSet<T> &a, const Vector<T> &b) {
+	for (int i = 0; i < b.size(); i++) {
+		if (a.has(b[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+template <class K, class V>
+Vector<K> get_keys(const HashMap<K, V> &map) {
+	Vector<K> ret;
+	for (const auto &E : map) {
+		ret.push_back(E.key);
+	}
+	return ret;
+}
+
+template <class K, class V>
+HashSet<K> get_set_of_keys(const HashMap<K, V> &map) {
+	HashSet<K> ret;
+	for (const auto &E : map) {
+		ret.insert(E.key);
+	}
+	return ret;
+}
+
+template <class T>
+Vector<T> get_vector_intersection(const Vector<T> &a, const Vector<T> &b) {
+	Vector<T> ret;
+	const Vector<T> &bigger = a.size() > b.size() ? a : b;
+	const Vector<T> &smaller = a.size() > b.size() ? b : a;
+	for (int i = 0; i < smaller.size(); i++) {
+		if (bigger.has(smaller[i])) {
+			ret.push_back(smaller[i]);
+		}
+	}
+	return ret;
+}
+
+template <class T, class Iterable>
+HashSet<T> hashset_without(const HashSet<T> &h, const Iterable &to_erase) {
+	HashSet<T> ret;
+	for (const auto &E : h) {
+		if (!to_erase.has(E)) {
+			ret.insert(E);
+		}
+	}
+	return ret;
+}
+
+template <class T, class Iterable>
+bool has_all(const HashSet<T> &h, const Iterable &to_find) {
+	for (const auto &E : to_find) {
+		if (!h.has(E)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template <class T, class Iterable>
+bool has_all(const Vector<T> &h, const Iterable &to_find) {
+	for (const auto &E : to_find) {
+		if (!h.has(E)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template <class T, class Iterable>
+void add_all(HashSet<T> &h, const Iterable &to_add) {
+	for (const auto &E : to_add) {
+		h.insert(E);
+	}
+}
+
+template <class T>
+void shuffle_vector(Vector<T> &vec) {
+	const int n = vec.size();
+	if (n < 2) {
+		return;
+	}
+	T *data = vec.ptrw();
+	for (int i = n - 1; i >= 1; i--) {
+		const int j = Math::rand() % (i + 1);
+		const T tmp = data[j];
+		data[j] = data[i];
+		data[i] = tmp;
+	}
+}
+
+template <class T>
+TypedArray<T> vector_to_typed_array(const Vector<T> &vec) {
+	TypedArray<T> arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
+template <class T>
+Vector<T> array_to_vector(const Array &arr) {
+	Vector<T> vec;
+	for (int i = 0; i < arr.size(); i++) {
+		vec.push_back(arr[i]);
+	}
+	return vec;
+}
+
+template <class T>
+Array vector_to_array(const Vector<T> &vec) {
+	Array arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
+// specialization for Ref<T>
+template <class T>
+TypedArray<T> vector_to_typed_array(const Vector<Ref<T>> &vec) {
+	TypedArray<T> arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
+template <class K, class V, std::enable_if_t<!std::is_base_of_v<RefCounted, K> && !std::is_base_of_v<RefCounted, V>> * = nullptr>
+HashMap<K, V> typed_dict_to_hashmap(const TypedDictionary<K, V> &dict) {
+	HashMap<K, V> map;
+	for (const auto &E : dict) {
+		map[E.key] = E.value;
+	}
+	return map;
+}
+
+// enable this one if K is a Ref<T> and V is not a Ref<T>
+template <class K, class V, std::enable_if_t<std::is_base_of_v<RefCounted, K> && !std::is_base_of_v<RefCounted, V>> * = nullptr>
+HashMap<Ref<K>, V> typed_dict_to_hashmap(const TypedDictionary<K, V> &dict) {
+	HashMap<Ref<K>, V> map;
+	for (const auto &E : dict) {
+		map[E.key] = E.value;
+	}
+	return map;
+}
+
+// enable this one if K is not a Ref<T> and V is a Ref<T>
+template <class K, class V, std::enable_if_t<!std::is_base_of_v<RefCounted, K> && std::is_base_of_v<RefCounted, V>> * = nullptr>
+HashMap<K, Ref<V>> typed_dict_to_hashmap(const TypedDictionary<K, Ref<V>> &dict) {
+	HashMap<K, Ref<V>> map;
+	for (const auto &E : dict) {
+		map[E.key] = E.value;
+	}
+	return map;
+}
+
+// enable if both K and V are derived from RefCounted
+template <class K, class V, std::enable_if_t<std::is_base_of_v<RefCounted, K> && std::is_base_of_v<RefCounted, V>> * = nullptr>
+HashMap<Ref<K>, Ref<V>> typed_dict_to_hashmap(const TypedDictionary<K, Ref<V>> &dict) {
+	HashMap<Ref<K>, Ref<V>> map;
+	for (const auto &E : dict) {
+		map[E.key] = E.value;
+	}
+	return map;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<K, V> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<K, Ref<V>> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<Ref<K>, V> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<Ref<K>, Ref<V>> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+
+template <typename T>
+T get_most_popular_value(const Vector<T> &p_values) {
+	if (p_values.is_empty()) {
+		return T();
+	}
+	HashMap<T, int64_t> dict;
+	for (int i = 0; i < p_values.size(); i++) {
+		size_t current_count = dict.has(p_values[i]) ? dict.get(p_values[i]) : 0;
+		dict[p_values[i]] = current_count + 1;
+	}
+	int64_t max_count = 0;
+	T most_popular_value;
+	for (auto &E : dict) {
+		if (E.value > max_count) {
+			max_count = E.value;
+			most_popular_value = E.key;
+		}
+	}
+	return most_popular_value;
+}
+
+// Non-typed array from typed array (used for serializing)
+template <class T>
+Array array_from_typed_array(const TypedArray<T> &p_typed_array) {
+	Array ret;
+	for (int i = 0; i < p_typed_array.size(); i++) {
+		ret.push_back(p_typed_array[i]);
+	}
+	return ret;
+}
+
+bool string_is_ascii(const String &s);
+bool string_has_whitespace(const String &s);
+void get_chars_in_set(const String &s, const HashSet<char32_t> &chars, HashSet<char32_t> &ret);
+bool has_chars_in_set(const String &s, const HashSet<char32_t> &chars);
+String remove_chars(const String &s, const HashSet<char32_t> &chars);
+String remove_chars(const String &s, const Vector<char32_t> &chars);
+String remove_whitespace(const String &s);
+
+Vector<String> _split_multichar(const String &s, const Vector<String> &splitters, bool allow_empty = true,
+		int maxsplit = 0);
+Vector<String> _rsplit_multichar(const String &s, const Vector<String> &splitters, bool allow_empty = true,
+		int maxsplit = 0);
+
+Vector<String> split_multichar(const String &s, const HashSet<char32_t> &splitters, bool allow_empty = true,
+		int maxsplit = 0);
+Vector<String> rsplit_multichar(const String &s, const HashSet<char32_t> &splitters, bool allow_empty = true,
+		int maxsplit = 0);
+
+bool detect_utf8(const PackedByteArray &p_utf8_buf);
+Error copy_dir(const String &src, const String &dst);
+
+Ref<FileAccess> open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key);
+Vector<String> filter_error_backtraces(const Vector<String> &p_error_messages);
+Vector<String> get_files_for_paths(const Vector<String> &p_paths);
+String get_java_path();
+int get_java_version();
+bool is_macho_binary(const String &p_path);
+String path_to_uri(const String &p_path);
+bool is_path_tar(const String &p_path);
+bool is_path_archive(const String &p_path);
+bool is_zip_file(const String &p_path);
+String remove_url_query_params(const String &p_url);
+String get_safe_dir_name(const String &p_dir_name, bool p_allow_paths = false);
+Ref<Image> load_image_from_file(const String &p_path);
+Error clear_dir_except_for(const String &p_dir, const Vector<String> &p_files_or_dirs);
+
+struct CaselessHashMapComparator {
+	static _FORCE_INLINE_ bool compare(const String &p_lhs, const String &p_rhs) {
+		return p_lhs.nocasecmp_to(p_rhs) == 0;
+	}
+};
+struct CaselessHashMapHasher {
+	static _FORCE_INLINE_ uint32_t hash(const String &p_string) {
+		return p_string.to_lower().hash();
+	}
+};
+
+template <typename T>
+using CaselessHashMap = HashMap<String, T, CaselessHashMapHasher, CaselessHashMapComparator>;
+using CaselessHashSet = HashSet<String, CaselessHashMapHasher, CaselessHashMapComparator>;
+} // namespace gdre
+
+class GDRECommon : public Object {
+	GDCLASS(GDRECommon, Object);
+
+protected:
+	static void _bind_methods();
+};
+
+// Can only pass in string literals
+#define _GDRE_CHECK_HEADER(p_buffer, p_expected_header) gdre::check_header(p_buffer, p_expected_header, sizeof(p_expected_header) - 1)

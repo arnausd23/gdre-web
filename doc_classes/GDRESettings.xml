@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GDRESettings" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_remap">
+			<return type="int" enum="Error" />
+			<param index="0" name="src" type="String" />
+			<param index="1" name="dst" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="are_imports_loaded" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="close_log_file">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="get_auto_display_scale" qualifiers="const">
+			<return type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="get_custom_decryption_script_path" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_custom_decryptor" qualifiers="const">
+			<return type="CustomDecryptor" />
+			<description>
+			</description>
+		</method>
+		<method name="get_cwd">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_disclaimer_text" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_dotnet_assembly_path" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_dotnet_decompiler" qualifiers="const">
+			<return type="GodotMonoDecompWrapper" />
+			<description>
+			</description>
+		</method>
+		<method name="get_encryption_key">
+			<return type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_encryption_key_string">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_errors">
+			<return type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_exec_dir">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_file_count" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_file_info_array">
+			<return type="Array" />
+			<param index="0" name="filters" type="PackedStringArray" default="PackedStringArray()" />
+			<description>
+			</description>
+		</method>
+		<method name="get_file_list">
+			<return type="PackedStringArray" />
+			<param index="0" name="filters" type="PackedStringArray" default="PackedStringArray()" />
+			<description>
+			</description>
+		</method>
+		<method name="get_game_app_version" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_game_name" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_gdre_resource_path" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_gdre_tmp_path" qualifiers="static">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_gdre_user_path" qualifiers="static">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_gdre_version" qualifiers="static">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_home_dir" qualifiers="static">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_import_files">
+			<return type="Array" />
+			<param index="0" name="copy" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="get_import_info_by_dest" qualifiers="const">
+			<return type="ImportInfo" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_import_info_by_source">
+			<return type="ImportInfo" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_log_file_path">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_pack_info_list" qualifiers="const">
+			<return type="PackInfo[]" />
+			<description>
+			</description>
+		</method>
+		<method name="get_pack_path" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_pack_type" qualifiers="const">
+			<return type="int" enum="PackInfo.PackType" />
+			<description>
+			</description>
+		</method>
+		<method name="get_project_config_path">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_project_dotnet_assembly_name" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_project_path" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_project_setting" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="p_setting" type="String" />
+			<param index="1" name="default_value" type="Variant" default="null" />
+			<description>
+			</description>
+		</method>
+		<method name="get_recent_error_string">
+			<return type="String" />
+			<param index="0" name="filter_backtraces" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="get_remaps" qualifiers="const">
+			<return type="Dictionary" />
+			<param index="0" name="include_imports" type="bool" default="true" />
+			<description>
+			</description>
+		</method>
+		<method name="get_sys_info_string" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_temp_dotnet_assembly_dir" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_ver_major" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_ver_minor" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_ver_rev" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_version_string" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="globalize_path" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="p_path" type="String" />
+			<param index="1" name="resource_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="had_encryption_error" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="has_any_remaps" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="has_loaded_dotnet_assembly" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="has_path_loaded" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="has_project_setting">
+			<return type="bool" />
+			<param index="0" name="p_setting" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="has_remap" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="src" type="String" />
+			<param index="1" name="dst" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="is_headless" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="is_pack_loaded" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="is_project_config_loaded" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="load_import_file">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="load_import_files">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="load_project">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_paths" type="PackedStringArray" />
+			<param index="1" name="cmd_line_extract" type="bool" default="false" />
+			<param index="2" name="csharp_assembly_override" type="String" default="&quot;&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="load_project_config">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="load_translation_key_hint_file">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="localize_path" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="p_path" type="String" />
+			<param index="1" name="resource_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="needs_post_load_patch_translation" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="open_log_file">
+			<return type="int" enum="Error" />
+			<param index="0" name="output_dir" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="pack_has_project_config" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="post_load_patch_translation">
+			<return type="int" enum="Error" />
+			<description>
+			</description>
+		</method>
+		<method name="project_requires_dotnet_assembly" qualifiers="const">
+			<return type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="remove_remap">
+			<return type="int" enum="Error" />
+			<param index="0" name="src" type="String" />
+			<param index="1" name="dst" type="String" />
+			<param index="2" name="output_dir" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="reset_custom_decryptor">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="reset_encryption_key">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="save_project_config">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_out_dir" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="save_project_config_binary">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_out_dir" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_custom_decryption_script">
+			<return type="int" enum="Error" />
+			<param index="0" name="p_decryptor_script_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_custom_decryptor">
+			<return type="void" />
+			<param index="0" name="p_decryptor" type="CustomDecryptor" />
+			<description>
+			</description>
+		</method>
+		<method name="set_dotnet_assembly_path">
+			<return type="void" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_encryption_key">
+			<return type="int" enum="Error" />
+			<param index="0" name="key" type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+		<method name="set_encryption_key_string">
+			<return type="int" enum="Error" />
+			<param index="0" name="key" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_project_path">
+			<return type="void" />
+			<param index="0" name="p_path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="set_project_setting">
+			<return type="void" />
+			<param index="0" name="p_setting" type="String" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+			</description>
+		</method>
+		<method name="unload_project">
+			<return type="int" enum="Error" />
+			<param index="0" name="no_reset_ephemeral" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="update_from_ephemeral_settings">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

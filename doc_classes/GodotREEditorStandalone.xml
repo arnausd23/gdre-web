@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GodotREEditorStandalone" inherits="Control" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_version">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="pck_select_request">
+			<return type="void" />
+			<param index="0" name="path" type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="popup_confirm_box">
+			<return type="void" />
+			<param index="0" name="message" type="String" />
+			<param index="1" name="title" type="String" />
+			<param index="2" name="confirm_callback" type="Callable" default="Callable()" />
+			<param index="3" name="cancel_callback" type="Callable" default="Callable()" />
+			<param index="4" name="ok_button_text" type="String" default="&quot;OK&quot;" />
+			<param index="5" name="cancel_button_text" type="String" default="&quot;Cancel&quot;" />
+			<description>
+			</description>
+		</method>
+		<method name="popup_error_box">
+			<return type="void" />
+			<param index="0" name="message" type="String" />
+			<param index="1" name="title" type="String" default="&quot;Error&quot;" />
+			<param index="2" name="callback" type="Callable" default="Callable()" />
+			<description>
+			</description>
+		</method>
+		<method name="progress_add_task" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="task" type="String" />
+			<param index="1" name="label" type="String" />
+			<param index="2" name="steps" type="int" />
+			<param index="3" name="can_cancel" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="progress_end_task" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="task" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="progress_task_step" qualifiers="static">
+			<return type="bool" />
+			<param index="0" name="task" type="String" />
+			<param index="1" name="state" type="String" />
+			<param index="2" name="step" type="int" />
+			<param index="3" name="force_refresh" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="show_about_dialog">
+			<return type="void" />
+			<description>
+			</description>
+		</method>
+		<method name="tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed" qualifiers="static">
+			<return type="void" />
+			<param index="0" name="tree" type="Tree" />
+			<param index="1" name="enabled" type="bool" />
+			<description>
+			</description>
+		</method>
+		<method name="write_log_message">
+			<return type="void" />
+			<param index="0" name="message" type="String" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

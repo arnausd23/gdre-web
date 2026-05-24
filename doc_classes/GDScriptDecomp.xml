@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GDScriptDecomp" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="compile_code_string">
+			<return type="PackedByteArray" />
+			<param index="0" name="code" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="create_decomp_for_commit" qualifiers="static">
+			<return type="GDScriptDecomp" />
+			<param index="0" name="commit_hash" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="create_decomp_for_version" qualifiers="static">
+			<return type="GDScriptDecomp" />
+			<param index="0" name="ver" type="String" />
+			<param index="1" name="p_force" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="decompile_byte_code">
+			<return type="int" enum="Error" />
+			<param index="0" name="path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="decompile_byte_code_encrypted">
+			<return type="int" enum="Error" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="key" type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_all_decomp_versions_json" qualifiers="static">
+			<return type="Dictionary[]" />
+			<description>
+			</description>
+		</method>
+		<method name="get_buffer_encrypted" qualifiers="static">
+			<return type="PackedByteArray" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="engine_ver_major" type="int" />
+			<param index="2" name="key" type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bytecode_rev" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bytecode_version" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bytecode_versions" qualifiers="static">
+			<return type="PackedStringArray" />
+			<description>
+			</description>
+		</method>
+		<method name="get_engine_ver_major" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_engine_version" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_error_message">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_function_count" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_function_index" qualifiers="const">
+			<return type="int" />
+			<param index="0" name="func_name" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_function_name" qualifiers="const">
+			<return type="String" />
+			<param index="0" name="func_idx" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_godot_ver" qualifiers="const">
+			<return type="GodotVer" />
+			<description>
+			</description>
+		</method>
+		<method name="get_max_engine_version" qualifiers="const">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_parent" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_script_text">
+			<return type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="get_token_max" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_variant_ver_major" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="read_bytecode_version" qualifiers="static">
+			<return type="int" />
+			<param index="0" name="path" type="String" />
+			<description>
+			</description>
+		</method>
+		<method name="read_bytecode_version_encrypted" qualifiers="static">
+			<return type="int" />
+			<param index="0" name="path" type="String" />
+			<param index="1" name="engine_ver_major" type="int" />
+			<param index="2" name="key" type="PackedByteArray" />
+			<description>
+			</description>
+		</method>
+		<method name="register_decomp_version_custom" qualifiers="static">
+			<return type="int" />
+			<param index="0" name="custom_def" type="Dictionary" />
+			<param index="1" name="derived_from" type="int" default="0" />
+			<description>
+			</description>
+		</method>
+		<method name="test_bytecode">
+			<return type="int" enum="GDScriptDecomp.BytecodeTestResult" />
+			<param index="0" name="buffer" type="PackedByteArray" />
+			<param index="1" name="print_verbose" type="bool" default="false" />
+			<description>
+			</description>
+		</method>
+		<method name="to_json" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="BYTECODE_TEST_CORRUPT" value="2" enum="BytecodeTestResult">
+		</constant>
+		<constant name="BYTECODE_TEST_FAIL" value="1" enum="BytecodeTestResult">
+		</constant>
+		<constant name="BYTECODE_TEST_PASS" value="0" enum="BytecodeTestResult">
+		</constant>
+	</constants>
+</class>

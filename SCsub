@@ -1,0 +1,168 @@
+#!/usr/bin/env python
+
+import os
+from typing import TYPE_CHECKING
+
+from build import gdre_icon_builder
+from build.common import add_libs_to_env, add_source_groups, append_cpppaths, find_llvm_prebuild_path, get_sources
+from build.mono_decomp import build_godot_mono_decomp, get_godot_mono_decomp_lib_dir
+from build.paths import *
+from build.versioning import write_version_header
+from build.vtracer import build_vtracer, get_vtracer_lib_dir
+
+if TYPE_CHECKING:
+    from SCons.Environment import Environment
+    from SCons.Builder import Builder
+    from SCons import Import
+
+env: Environment = None
+env_modules: Environment = None
+env_gdsdecomp: Environment = None
+
+Import("env")
+Import("env_modules")
+
+opts = Variables([], ARGUMENTS)
+opts.Add(BoolVariable("disable_godot_mono_decomp", "Disable Godot Mono Decompilation", False))
+opts.Add(BoolVariable("disable_gifski", "Disable Gifski", False))
+opts.Update(env)
+
+MODULE_DIR = get_module_dir(env)
+BUILD_DIR = get_build_dir(env)
+EXTERNAL_DIR = get_external_dir(MODULE_DIR)
+VTRACER_DIR = get_vtracer_dir(MODULE_DIR)
+VTRACER_BUILD_DIR = get_vtracer_build_dir(MODULE_DIR)
+GODOT_MONO_DECOMP_DIR = get_godot_mono_decomp_dir(MODULE_DIR)
+
+# TODO: Keep static branch intact for future use. Runtime/dotnet issues still block rollout.
+mono_native_lib_type = "Shared"
+is_using_clang = env["CXX"].lower().endswith("clang++")
+if env["platform"] == "android" or (is_using_clang and env["platform"] == "macos"):
+    mono_native_lib_type = "Shared"
+
+# hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13
+# TODO: remove this hack once the minimum macOS version is updated to 10.15
+if env["platform"] == "macos" and env["arch"] == "x86_64":
+    min_version_flag = "-mmacosx-version-min=10.15"
+    for build_env in [env, env_modules]:
+        build_env.Append(CPPFLAGS=[min_version_flag])
+        build_env.Append(LINKFLAGS=[min_version_flag])
+        build_env.Append(CXXFLAGS=[min_version_flag])
+        build_env.Append(ASFLAGS=[min_version_flag])
+
+env_gdsdecomp = env_modules.Clone()
+opts.Update(env_gdsdecomp)
+
+if env["tests"]:
+    env_gdsdecomp.Append(CPPDEFINES=["TESTS_ENABLED"])
+    append_cpppaths(
+        env,
+        [
+            VTRACER_INCLUDE_DIR,
+            GODOT_MONO_DECOMP_INCLUDE_DIR,
+            MODULE_INCLUDE_DIR,
+            MMP3_THIRDPARTY_DIR,
+            LIBOGG_THIRDPARTY_DIR,
+            LIBVORBIS_THIRDPARTY_DIR,
+        ],
+    )
+
+append_cpppaths(
+    env_gdsdecomp,
+    [
+        VTRACER_INCLUDE_DIR,
+        GODOT_MONO_DECOMP_INCLUDE_DIR,
+        MODULE_INCLUDE_DIR,
+        THORSVG_THIRDPARTY_DIR,
+        LIBTHEORA_THIRDPARTY_DIR,
+        MBEDTLS_THIRDPARTY_DIR,
+    ],
+)
+
+if env["disable_exceptions"]:
+    env_gdsdecomp.Append(CPPDEFINES=["DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS"])
+env_gdsdecomp.Append(CPPDEFINES=["ENABLE_3_X_SCENE_LOADING"])
+
+env_gdsdecomp["BUILDERS"]["MakeGDREIconsBuilder"] = Builder(
+    action=env_gdsdecomp.Run(gdre_icon_builder.make_gdre_icons_action),
+    suffix=".h",
+    src_suffix=".svg",
+)
+icon_sources = Glob("icons/*.svg")
+env_gdsdecomp.Alias("gdre_icons", [env_gdsdecomp.MakeGDREIconsBuilder("gui/gdre_icons.gen.h", icon_sources)])
+
+write_version_header(os.path.join(MODULE_DIR, "utility", "gdre_version.gen.h"))
+
+if env["builtin_libogg"]:
+    env_gdsdecomp.Prepend(CPPPATH=[LIBOGG_THIRDPARTY_DIR])
+if env["builtin_libvorbis"]:
+    env_gdsdecomp.Prepend(CPPPATH=["#thirdparty/libvorbis"])
+env_gdsdecomp.Prepend(CPPPATH=[MMP3_THIRDPARTY_DIR])
+if env["builtin_libwebp"]:
+    env_gdsdecomp.Prepend(CPPPATH=[WEBP_THIRDPARTY_DIR, WEBP_THIRDPARTY_DIR + "src/"])
+
+env.Append(LIBPATH=[get_vtracer_lib_dir(env, VTRACER_BUILD_DIR)])
+env.Append(LIBPATH=[BUILD_DIR])
+env.Append(
+    LIBPATH=[get_godot_mono_decomp_lib_dir(GODOT_MONO_DECOMP_DIR, env["platform"], env["arch"], env.get("dev_build", False))]
+)
+
+module_obj = []
+common_sources = [
+    "*.cpp",
+    "bytecode/*.cpp",
+    "compat/*.cpp",
+    "crypto/*.cpp",
+    "exporters/*.cpp",
+    "gui/*.cpp",
+    "plugin_manager/*.cpp",
+    "utility/*.cpp",
+    "external/tga/*.cpp",
+    "external/tinygltf/tiny_gltf.cc",
+    "module_etc_decompress/*.cpp",
+]
+add_source_groups(env_gdsdecomp, module_obj, common_sources)
+if env["target"] == "editor":
+    add_source_groups(env_gdsdecomp, module_obj, ["editor/*.cpp"])
+if env["tests"]:
+    add_source_groups(env_gdsdecomp, module_obj, ["tests/*.cpp"])
+
+build_vtracer(
+    root_env=env,
+    env_gdsdecomp=env_gdsdecomp,
+    module_obj=module_obj,
+    module_dir=MODULE_DIR,
+    external_dir=EXTERNAL_DIR,
+    vtracer_prefix=VTRACER_PREFIX,
+    vtracer_dir=VTRACER_DIR,
+    vtracer_build_dir=VTRACER_BUILD_DIR,
+    vtracer_libs=VTRACER_LIBS,
+    get_sources=get_sources,
+    add_libs_to_env=add_libs_to_env,
+    builder_class=Builder,
+    find_llvm_prebuild_path=find_llvm_prebuild_path,
+)
+
+if "disable_gifski" in env and env["disable_gifski"]:
+    env_gdsdecomp.Append(CPPDEFINES=["GIFSKI_DISABLED"])
+if "disable_godot_mono_decomp" in env and env["disable_godot_mono_decomp"]:
+    env_gdsdecomp.Append(CPPDEFINES=["GODOT_MONO_DECOMP_DISABLED"])
+else:
+    build_godot_mono_decomp(
+        env=env,
+        env_gdsdecomp=env_gdsdecomp,
+        module_obj=module_obj,
+        module_dir=MODULE_DIR,
+        build_dir=BUILD_DIR,
+        mono_native_lib_type=mono_native_lib_type,
+        godot_mono_decomp_parent=GODOT_MONO_DECOMP_PARENT,
+        godot_mono_decomp_dir=GODOT_MONO_DECOMP_DIR,
+        godot_mono_decomp_libs=GODOT_MONO_DECOMP_LIBS,
+        get_sources=get_sources,
+        add_libs_to_env=add_libs_to_env,
+        builder_class=Builder,
+        copy_action=Copy,
+    )
+
+env.modules_sources += module_obj
+

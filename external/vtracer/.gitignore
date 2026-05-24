@@ -1,0 +1,6 @@
+*.svg
+*.png
+*.jpg
+target/
+.cargo/config.toml
+rust-toolchain.toml
